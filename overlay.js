@@ -5,6 +5,7 @@ const queryEl = document.getElementById("query");
 const listEl = document.getElementById("list");
 const backdropEl = document.getElementById("backdrop");
 const panelEl = document.getElementById("panel");
+const hintEl = document.getElementById("hint");
 const groupFilterEl = document.getElementById("groupFilter");
 const sortModeEl = document.getElementById("sortMode");
 const groupControlEl = document.getElementById("groupControl");
@@ -18,6 +19,8 @@ let open = false;
 let selectedIds = new Set();
 let anchorIndex = null;
 
+let settingsBound = false;
+
 const STORAGE_KEYS = {
   settings: "tp_settings",
   state: "tp_state"
@@ -29,7 +32,8 @@ const DEFAULT_SETTINGS = {
   rememberSort: true,
   rememberFilter: true,
   searchGroups: true,
-  enableGroups: true
+  enableGroups: true,
+  showHints: true
 };
 
 const DEFAULT_STATE = {
@@ -202,6 +206,31 @@ async function loadSettings() {
 
   currentSort = settings.rememberSort ? state.sortMode : settings.sortMode;
   currentGroup = settings.rememberFilter ? state.groupFilter : settings.groupFilter;
+  if (hintEl) {
+    hintEl.style.display = settings.showHints ? "block" : "none";
+  }
+}
+
+function bindSettingsListener() {
+  if (settingsBound) return;
+  settingsBound = true;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync" || !changes[STORAGE_KEYS.settings]) return;
+    const next = { ...DEFAULT_SETTINGS, ...(changes[STORAGE_KEYS.settings].newValue || {}) };
+    settings = next;
+    currentSort = settings.rememberSort ? state.sortMode : settings.sortMode;
+    currentGroup = settings.rememberFilter ? state.groupFilter : settings.groupFilter;
+    if (hintEl) {
+      hintEl.style.display = settings.showHints ? "block" : "none";
+    }
+    if (!settings.enableGroups) {
+      currentGroup = "all";
+      if (currentSort === "group") currentSort = "lastAccessed";
+    }
+    buildGroupOptions(allTabs);
+    buildSortOptions(allTabs.some(t => t.groupId >= 0));
+    applyFilter();
+  });
 }
 
 function saveState() {
@@ -431,6 +460,7 @@ function openPalette() {
   allTabs = [];
   filtered = [];
 
+  bindSettingsListener();
   loadSettings().finally(() => {
     // Request tabs
     post({ type: "TP_REQUEST_TABS" });
