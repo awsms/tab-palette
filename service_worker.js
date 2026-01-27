@@ -97,6 +97,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "TP_CLOSE_TABS") {
+    (async () => {
+      const { tabIds } = msg;
+      if (!Array.isArray(tabIds) || tabIds.length === 0) return sendResponse({ ok: false });
+      try {
+        await chrome.tabs.remove(tabIds);
+        sendResponse({ ok: true });
+      } catch {
+        sendResponse({ ok: false });
+      }
+    })();
+    return true;
+  }
+
   if (msg?.type === "TP_GET_ZOOM") {
     (async () => {
       try {

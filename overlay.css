@@ -47,6 +47,7 @@ html, body {
   border-top: 1px solid rgba(255,255,255,0.08);
   border-bottom: 1px solid rgba(255,255,255,0.08);
   background: #0f0f0f;
+  align-items: center;
 }
 
 .control {
@@ -71,6 +72,22 @@ html, body {
   padding: 6px 8px;
   font-size: 12px;
   outline: none;
+}
+
+.control-button {
+  margin-left: auto;
+  background: #1a1a1a;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.control-button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 #hint {
@@ -101,6 +118,10 @@ html, body {
 
 .item[aria-selected="true"] {
   background: rgba(255,255,255,0.10);
+}
+
+.item.multi-selected {
+  background: rgba(255,255,255,0.16);
 }
 
 .favicon {

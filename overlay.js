@@ -8,11 +8,15 @@ const panelEl = document.getElementById("panel");
 const groupFilterEl = document.getElementById("groupFilter");
 const sortModeEl = document.getElementById("sortMode");
 const groupControlEl = document.getElementById("groupControl");
+const closeSelectedEl = document.getElementById("closeSelected");
 
 let allTabs = [];
 let filtered = [];
 let selectedIndex = 0;
 let open = false;
+
+let selectedIds = new Set();
+let anchorIndex = null;
 
 const STORAGE_KEYS = {
   settings: "tp_settings",
@@ -259,6 +263,7 @@ function render() {
   filtered.forEach((tab, idx) => {
     const row = document.createElement("div");
     row.className = "item";
+    if (selectedIds.has(tab.id)) row.classList.add("multi-selected");
     row.setAttribute("role", "option");
     row.setAttribute("aria-selected", idx === selectedIndex ? "true" : "false");
 
@@ -322,6 +327,27 @@ function render() {
 
     row.addEventListener("mousedown", (e) => {
       e.preventDefault();
+      const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
+      if (isMulti) {
+        if (e.shiftKey && anchorIndex !== null) {
+          const [a, b] = anchorIndex < idx ? [anchorIndex, idx] : [idx, anchorIndex];
+          for (let i = a; i <= b; i += 1) {
+            const t = filtered[i];
+            if (t) selectedIds.add(t.id);
+          }
+        } else {
+          const id = tab.id;
+          if (selectedIds.has(id)) selectedIds.delete(id);
+          else selectedIds.add(id);
+          anchorIndex = idx;
+        }
+        updateCloseSelectedButton();
+        render();
+        return;
+      }
+      selectedIds = new Set([tab.id]);
+      anchorIndex = idx;
+      updateCloseSelectedButton();
       activateSelected();
     });
 
@@ -331,6 +357,7 @@ function render() {
   scrollSelectedIntoView();
   requestAnimationFrame(notifyReady);
   requestAnimationFrame(notifySize);
+  updateCloseSelectedButton();
 }
 
 function highlightOnly() {
@@ -371,6 +398,23 @@ function closeTab(tabId) {
   filtered = filtered.filter(t => t.id !== tabId);
   if (selectedIndex >= filtered.length) selectedIndex = Math.max(0, filtered.length - 1);
   render();
+}
+
+function closeSelectedTabs() {
+  if (selectedIds.size === 0) return;
+  const ids = Array.from(selectedIds);
+  post({ type: "TP_CLOSE_TABS", tabIds: ids });
+  allTabs = allTabs.filter(t => !selectedIds.has(t.id));
+  filtered = filtered.filter(t => !selectedIds.has(t.id));
+  selectedIds.clear();
+  if (selectedIndex >= filtered.length) selectedIndex = Math.max(0, filtered.length - 1);
+  render();
+}
+
+function updateCloseSelectedButton() {
+  const count = selectedIds.size;
+  closeSelectedEl.disabled = count === 0;
+  closeSelectedEl.textContent = count > 0 ? `Close selected (${count})` : "Close selected";
 }
 
 function close() {
@@ -452,9 +496,15 @@ window.addEventListener("keydown", (e) => {
     activateSelected();
     return;
   }
+
+  if ((e.key === "Backspace" || e.key === "Delete") && selectedIds.size > 0) {
+    e.preventDefault();
+    closeSelectedTabs();
+  }
 });
 
 queryEl.addEventListener("input", () => applyFilter());
+closeSelectedEl.addEventListener("click", () => closeSelectedTabs());
 sortModeEl.addEventListener("change", () => {
   currentSort = sortModeEl.value;
   if (settings.rememberSort) saveState();

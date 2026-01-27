@@ -92,6 +92,22 @@ function ensureUI() {
       return;
     }
 
+    if (data.type === "TP_CLOSE_TAB") {
+      await chrome.runtime.sendMessage({
+        type: "TP_CLOSE_TAB",
+        tabId: data.tabId
+      });
+      return;
+    }
+
+    if (data.type === "TP_CLOSE_TABS") {
+      await chrome.runtime.sendMessage({
+        type: "TP_CLOSE_TABS",
+        tabIds: data.tabIds
+      });
+      return;
+    }
+
     if (data.type === "TP_READY") {
       TP.readyToShow = true;
       maybeShowIframe();
