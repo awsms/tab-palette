@@ -566,6 +566,40 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
+  if (e.key === "PageDown") {
+    e.preventDefault();
+    const view = listEl.clientHeight || 0;
+    const rowH = listEl.firstElementChild ? listEl.firstElementChild.getBoundingClientRect().height : 24;
+    const delta = Math.max(1, Math.floor(view / (rowH || 1)) - 1);
+    moveSelection(delta);
+    return;
+  }
+
+  if (e.key === "PageUp") {
+    e.preventDefault();
+    const view = listEl.clientHeight || 0;
+    const rowH = listEl.firstElementChild ? listEl.firstElementChild.getBoundingClientRect().height : 24;
+    const delta = Math.max(1, Math.floor(view / (rowH || 1)) - 1);
+    moveSelection(-delta);
+    return;
+  }
+
+  if (e.key === "Home") {
+    e.preventDefault();
+    if (filtered.length === 0) return;
+    selectedIndex = 0;
+    highlightOnly();
+    return;
+  }
+
+  if (e.key === "End") {
+    e.preventDefault();
+    if (filtered.length === 0) return;
+    selectedIndex = filtered.length - 1;
+    highlightOnly();
+    return;
+  }
+
   if ((e.key === "Backspace" || e.key === "Delete") && selectedIds.size > 0) {
     e.preventDefault();
     closeSelectedTabs();
