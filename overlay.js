@@ -60,19 +60,28 @@ function scoreTab(tab, q) {
   const u = (tab.url || "").toLowerCase();
   const g = settings.enableGroups && settings.searchGroups ? (tab.groupTitle || "").toLowerCase() : "";
   if (!q) return 0;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return 0;
 
   let score = 0;
-  if (t.includes(q)) score += 100;
-  if (u.includes(q)) score += 40;
-  if (g && g.includes(q)) score += 60;
+  for (const token of tokens) {
+    const inTitle = t.includes(token);
+    const inUrl = u.includes(token);
+    const inGroup = g ? g.includes(token) : false;
+    if (!inTitle && !inUrl && !inGroup) return 0;
 
-  // bonus for earlier match
-  const ti = t.indexOf(q);
-  const ui = u.indexOf(q);
-  const gi = g ? g.indexOf(q) : -1;
-  if (ti >= 0) score += Math.max(0, 30 - ti);
-  if (ui >= 0) score += Math.max(0, 10 - ui);
-  if (gi >= 0) score += Math.max(0, 20 - gi);
+    if (inTitle) score += 100;
+    if (inUrl) score += 40;
+    if (inGroup) score += 60;
+
+    // bonus for earlier match per token
+    const ti = inTitle ? t.indexOf(token) : -1;
+    const ui = inUrl ? u.indexOf(token) : -1;
+    const gi = inGroup ? g.indexOf(token) : -1;
+    if (ti >= 0) score += Math.max(0, 30 - ti);
+    if (ui >= 0) score += Math.max(0, 10 - ui);
+    if (gi >= 0) score += Math.max(0, 20 - gi);
+  }
 
   return score;
 }
