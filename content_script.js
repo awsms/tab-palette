@@ -15,9 +15,7 @@ const TP = {
   sizeReady: false,
   showTimer: null,
   forceShow: false,
-  lastContentHeight: null,
-  displayMode: "overlay",
-  keyBound: false
+  lastContentHeight: null
 };
 
 const STORAGE_KEYS = {
@@ -147,21 +145,8 @@ function ensureUI() {
       if (area !== "sync" || !changes[STORAGE_KEYS.settings]) return;
       const next = changes[STORAGE_KEYS.settings].newValue || {};
       TP.uiScale = typeof next.uiScale === "number" ? next.uiScale : 1;
-      TP.displayMode = typeof next.displayMode === "string" ? next.displayMode : "overlay";
       updateScale();
     });
-  }
-
-  if (!TP.keyBound) {
-    TP.keyBound = true;
-    document.addEventListener("keydown", (e) => {
-      if (TP.displayMode !== "sidepanel") return;
-      const isMod = e.ctrlKey || e.metaKey;
-      if (isMod && e.shiftKey && (e.key === "A" || e.key === "a")) {
-        e.preventDefault();
-        chrome.runtime.sendMessage({ type: "TP_OPEN_SIDEPANEL" });
-      }
-    }, true);
   }
 }
 
@@ -188,7 +173,6 @@ async function loadSettings() {
   const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings]);
   const settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
   TP.uiScale = typeof settings.uiScale === "number" ? settings.uiScale : 1;
-  TP.displayMode = typeof settings.displayMode === "string" ? settings.displayMode : "overlay";
 }
 
 async function loadZoomBase() {
