@@ -5,7 +5,8 @@ const TP = {
   shadow: null,
   iframe: null,
   open: false,
-  ready: false
+  ready: false,
+  lastFocused: null
 };
 
 chrome.runtime.onMessage.addListener((msg) => {
@@ -28,24 +29,11 @@ function ensureUI() {
 
   TP.shadow = TP.host.attachShadow({ mode: "open" });
 
-  TP.iframe = document.createElement("iframe");
-  TP.iframe.src = chrome.runtime.getURL("overlay.html");
-  TP.iframe.style.width = "100%";
-  TP.iframe.style.height = "100%";
-  TP.iframe.style.border = "0";
-  TP.iframe.style.pointerEvents = "auto";
-  TP.iframe.addEventListener("load", () => {
-    TP.ready = true;
-    // If the palette was opened before the iframe finished loading, open it now.
-    if (TP.open) {
-      TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
-    }
-  });
-
-  TP.shadow.appendChild(TP.iframe);
+  createIframe();
 
   // Relay messages between iframe and background
   window.addEventListener("message", async (ev) => {
+    if (!TP.iframe || !TP.iframe.contentWindow) return;
     if (ev.source !== TP.iframe.contentWindow) return;
     const data = ev.data;
 
@@ -77,9 +65,33 @@ function ensureUI() {
   });
 }
 
+function createIframe() {
+  if (!TP.shadow) return;
+  if (TP.iframe && TP.iframe.isConnected) return;
+
+  TP.ready = false;
+  TP.iframe = document.createElement("iframe");
+  TP.iframe.src = chrome.runtime.getURL("overlay.html");
+  TP.iframe.style.width = "100%";
+  TP.iframe.style.height = "100%";
+  TP.iframe.style.border = "0";
+  TP.iframe.style.pointerEvents = "auto";
+  TP.iframe.addEventListener("load", () => {
+    TP.ready = true;
+    // If the palette was opened before the iframe finished loading, open it now.
+    if (TP.open && TP.iframe?.contentWindow) {
+      TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
+    }
+  });
+
+  TP.shadow.appendChild(TP.iframe);
+}
+
 function showPalette() {
   ensureUI();
+  createIframe();
   TP.open = true;
+  TP.lastFocused = document.activeElement;
   TP.host.style.display = "block";
   TP.host.style.pointerEvents = "auto";
 
@@ -92,8 +104,36 @@ function showPalette() {
 function hidePalette() {
   if (!TP.host) return;
   TP.open = false;
+  if (TP.iframe?.contentWindow) {
+    TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_BLUR" }, "*");
+  }
   TP.host.style.pointerEvents = "none";
   TP.host.style.display = "none";
+  if (TP.iframe) {
+    TP.iframe.remove();
+    TP.iframe = null;
+    TP.ready = false;
+  }
+  if (TP.lastFocused && typeof TP.lastFocused.focus === "function") {
+    TP.lastFocused.focus();
+  } else {
+    const body = document.body;
+    if (body) {
+      const focusEl = document.createElement("input");
+      focusEl.type = "text";
+      focusEl.tabIndex = -1;
+      focusEl.style.position = "fixed";
+      focusEl.style.opacity = "0";
+      focusEl.style.pointerEvents = "none";
+      focusEl.style.width = "1px";
+      focusEl.style.height = "1px";
+      body.appendChild(focusEl);
+      focusEl.focus();
+      focusEl.remove();
+    } else {
+      window.focus();
+    }
+  }
 }
 
 function togglePalette() {

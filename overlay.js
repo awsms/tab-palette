@@ -322,6 +322,14 @@ window.addEventListener("message", (ev) => {
     return;
   }
 
+  if (data.type === "TP_BLUR") {
+    if (document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+    queryEl.blur();
+    return;
+  }
+
   if (data.type === "TP_TABS") {
     const resp = data.payload;
     if (!resp?.ok) return;
