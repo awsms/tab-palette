@@ -248,6 +248,10 @@ function showPalette() {
   if (TP.ready) {
     TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
   }
+
+  if (TP.iframe?.contentWindow) {
+    TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_FORCE_FOCUS" }, "*");
+  }
 }
 
 function hidePalette() {

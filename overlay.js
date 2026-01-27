@@ -479,6 +479,11 @@ window.addEventListener("message", (ev) => {
     return;
   }
 
+  if (data.type === "TP_FORCE_FOCUS") {
+    setTimeout(() => queryEl.focus(), 0);
+    return;
+  }
+
   if (data.type === "TP_BLUR") {
     if (document.activeElement && typeof document.activeElement.blur === "function") {
       document.activeElement.blur();
