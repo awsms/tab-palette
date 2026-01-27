@@ -9,7 +9,8 @@ const TP = {
   viewportBound: false,
   baseDpr: null,
   uiScale: 1,
-  settingsBound: false
+  settingsBound: false,
+  currentScale: 1
 };
 
 const STORAGE_KEYS = {
@@ -88,7 +89,9 @@ function ensureUI() {
 
     if (data.type === "TP_SIZE") {
       if (!TP.iframe || typeof data.height !== "number") return;
-      TP.iframe.style.height = `${Math.ceil(data.height)}px`;
+      const scale = TP.currentScale || 1;
+      const height = Math.ceil(data.height / scale);
+      TP.iframe.style.height = `${height}px`;
       return;
     }
   });
@@ -110,6 +113,7 @@ function updateScale() {
   if (!TP.baseDpr) TP.baseDpr = currentDpr;
   const inv = TP.baseDpr / currentDpr;
   const scale = inv * (TP.uiScale || 1);
+  TP.currentScale = scale || 1;
   TP.iframe.style.transform = `translateX(-50%) scale(${scale})`;
   TP.iframe.style.transformOrigin = "top center";
 }
