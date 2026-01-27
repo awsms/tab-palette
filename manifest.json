@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Palette",
+  "version": "1.0.0",
+  "description": "Keyboard tab switcher palette (search + arrow nav + enter).",
+  "permissions": ["tabs", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "commands": {
+    "toggle_palette": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Toggle tab palette"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["overlay.html", "overlay.js", "overlay.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
