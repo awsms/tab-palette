@@ -32,6 +32,12 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden" && TP.open) {
+    hidePalette();
+  }
+});
+
 function ensureUI() {
   if (TP.host) return;
 
