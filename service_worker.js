@@ -1,5 +1,3 @@
-// service_worker.js (MV3)
-
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== "toggle_palette") return;
 

@@ -12,12 +12,30 @@ let allTabs = [];
 let filtered = [];
 let selectedIndex = 0;
 let open = false;
-let currentSort = "lastAccessed";
-let currentGroup = "all";
 
 const STORAGE_KEYS = {
+  settings: "tp_settings",
   state: "tp_state"
 };
+
+const DEFAULT_SETTINGS = {
+  sortMode: "lastAccessed",
+  groupFilter: "all",
+  rememberSort: true,
+  rememberFilter: true,
+  searchGroups: true,
+  enableGroups: true
+};
+
+const DEFAULT_STATE = {
+  sortMode: "lastAccessed",
+  groupFilter: "all"
+};
+
+let settings = { ...DEFAULT_SETTINGS };
+let state = { ...DEFAULT_STATE };
+let currentSort = DEFAULT_SETTINGS.sortMode;
+let currentGroup = DEFAULT_SETTINGS.groupFilter;
 
 const GROUP_COLORS = {
   grey: "#9aa0a6",
@@ -40,17 +58,21 @@ function scoreTab(tab, q) {
   // You can replace with a proper fuzzy matcher later.
   const t = (tab.title || "").toLowerCase();
   const u = (tab.url || "").toLowerCase();
+  const g = settings.enableGroups && settings.searchGroups ? (tab.groupTitle || "").toLowerCase() : "";
   if (!q) return 0;
 
   let score = 0;
   if (t.includes(q)) score += 100;
   if (u.includes(q)) score += 40;
+  if (g && g.includes(q)) score += 60;
 
   // bonus for earlier match
   const ti = t.indexOf(q);
   const ui = u.indexOf(q);
+  const gi = g ? g.indexOf(q) : -1;
   if (ti >= 0) score += Math.max(0, 30 - ti);
   if (ui >= 0) score += Math.max(0, 10 - ui);
+  if (gi >= 0) score += Math.max(0, 20 - gi);
 
   return score;
 }
@@ -86,7 +108,7 @@ function buildSortOptions(hasGroups) {
     { value: "lastAccessed", label: "Last opened" },
     { value: "alpha", label: "Alphabetical" }
   ];
-  if (hasGroups) {
+  if (settings.enableGroups && hasGroups) {
     options.push({ value: "group", label: "By group" });
   }
   options.forEach(opt => {
@@ -95,11 +117,21 @@ function buildSortOptions(hasGroups) {
     el.textContent = opt.label;
     sortModeEl.appendChild(el);
   });
-  if (!hasGroups && currentSort === "group") currentSort = "lastAccessed";
+  if ((!settings.enableGroups || !hasGroups) && currentSort === "group") currentSort = "lastAccessed";
   sortModeEl.value = currentSort;
 }
 
 function buildGroupOptions(tabs) {
+  if (!settings.enableGroups) {
+    groupFilterEl.innerHTML = "";
+    const all = document.createElement("option");
+    all.value = "all";
+    all.textContent = "All groups";
+    groupFilterEl.appendChild(all);
+    groupFilterEl.value = "all";
+    groupControlEl.style.display = "none";
+    return false;
+  }
   const groups = new Map();
   tabs.forEach(tab => {
     if (tab.groupId >= 0) {
@@ -138,32 +170,36 @@ function buildGroupOptions(tabs) {
   return sorted.length > 0;
 }
 
-async function loadState() {
-  const resp = await chrome.storage.sync.get([STORAGE_KEYS.state]);
-  const state = resp[STORAGE_KEYS.state] || {};
-  if (state.sortMode) currentSort = state.sortMode;
-  if (state.groupFilter) currentGroup = state.groupFilter;
+async function loadSettings() {
+  const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings, STORAGE_KEYS.state]);
+  settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
+  state = { ...DEFAULT_STATE, ...(resp[STORAGE_KEYS.state] || {}) };
+
+  currentSort = settings.rememberSort ? state.sortMode : settings.sortMode;
+  currentGroup = settings.rememberFilter ? state.groupFilter : settings.groupFilter;
 }
 
 function saveState() {
-  chrome.storage.sync.set({
-    [STORAGE_KEYS.state]: {
-      sortMode: currentSort,
-      groupFilter: currentGroup
-    }
-  });
+  const nextState = {
+    sortMode: currentSort,
+    groupFilter: currentGroup
+  };
+  state = nextState;
+  chrome.storage.sync.set({ [STORAGE_KEYS.state]: nextState });
 }
 
 function applyFilter() {
   const q = queryEl.value.trim().toLowerCase();
 
   let items = allTabs.slice();
-  if (currentGroup === "ungrouped") {
-    items = items.filter(tab => tab.groupId < 0);
-  } else if (currentGroup !== "all") {
-    const groupId = Number(currentGroup);
-    if (!Number.isNaN(groupId)) {
-      items = items.filter(tab => tab.groupId === groupId);
+  if (settings.enableGroups) {
+    if (currentGroup === "ungrouped") {
+      items = items.filter(tab => tab.groupId < 0);
+    } else if (currentGroup !== "all") {
+      const groupId = Number(currentGroup);
+      if (!Number.isNaN(groupId)) {
+        items = items.filter(tab => tab.groupId === groupId);
+      }
     }
   }
   if (q) {
@@ -222,7 +258,7 @@ function render() {
 
     meta.appendChild(title);
     meta.appendChild(url);
-    if (typeof tab.groupId === "number" && tab.groupId >= 0) {
+    if (settings.enableGroups && typeof tab.groupId === "number" && tab.groupId >= 0) {
       const group = document.createElement("div");
       group.className = "group";
 
@@ -304,7 +340,7 @@ function openPalette() {
   allTabs = [];
   filtered = [];
 
-  loadState().finally(() => {
+  loadSettings().finally(() => {
     // Request tabs
     post({ type: "TP_REQUEST_TABS" });
   });
@@ -374,12 +410,12 @@ window.addEventListener("keydown", (e) => {
 queryEl.addEventListener("input", () => applyFilter());
 sortModeEl.addEventListener("change", () => {
   currentSort = sortModeEl.value;
-  saveState();
+  if (settings.rememberSort) saveState();
   applyFilter();
 });
 groupFilterEl.addEventListener("change", () => {
   currentGroup = groupFilterEl.value;
-  saveState();
+  if (settings.rememberFilter) saveState();
   applyFilter();
 });
 backdropEl.addEventListener("mousedown", (e) => {

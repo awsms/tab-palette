@@ -8,6 +8,10 @@
   "background": {
     "service_worker": "service_worker.js"
   },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
   "commands": {
     "toggle_palette": {
       "suggested_key": {

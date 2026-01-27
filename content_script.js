@@ -1,5 +1,3 @@
-// content_script.js
-
 const TP = {
   host: null,
   shadow: null,
