@@ -100,10 +100,8 @@ function ensureUI() {
 
     if (data.type === "TP_SIZE") {
       if (!TP.iframe || typeof data.height !== "number") return;
-      const scale = TP.currentScale || 1;
-      const height = Math.ceil(data.height / scale);
       TP.lastContentHeight = data.height;
-      TP.iframe.style.height = `${height}px`;
+      TP.iframe.style.height = `${Math.ceil(data.height)}px`;
       TP.sizeReady = true;
       maybeShowIframe();
       return;
@@ -130,10 +128,6 @@ function updateScale() {
   TP.currentScale = scale || 1;
   TP.iframe.style.transform = `translateX(-50%) scale(${TP.currentScale})`;
   TP.iframe.style.transformOrigin = "top center";
-  if (typeof TP.lastContentHeight === "number") {
-    const height = Math.ceil(TP.lastContentHeight / TP.currentScale);
-    TP.iframe.style.height = `${height}px`;
-  }
 }
 
 function maybeShowIframe() {
