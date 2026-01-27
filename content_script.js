@@ -4,6 +4,7 @@ const TP = {
   host: null,
   shadow: null,
   iframe: null,
+  backdrop: null,
   open: false,
   ready: false,
   lastFocused: null
@@ -25,10 +26,22 @@ function ensureUI() {
   TP.host.style.inset = "0";
   TP.host.style.zIndex = "2147483647"; // top
   TP.host.style.pointerEvents = "none"; // only iframe will capture
+  TP.host.style.background = "transparent";
   document.documentElement.appendChild(TP.host);
 
   TP.shadow = TP.host.attachShadow({ mode: "open" });
 
+  TP.backdrop = document.createElement("div");
+  TP.backdrop.style.position = "fixed";
+  TP.backdrop.style.inset = "0";
+  TP.backdrop.style.background = "transparent";
+  TP.backdrop.style.pointerEvents = "auto";
+  TP.backdrop.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    hidePalette();
+  });
+
+  TP.shadow.appendChild(TP.backdrop);
   createIframe();
 
   // Relay messages between iframe and background
@@ -72,10 +85,19 @@ function createIframe() {
   TP.ready = false;
   TP.iframe = document.createElement("iframe");
   TP.iframe.src = chrome.runtime.getURL("overlay.html");
-  TP.iframe.style.width = "100%";
-  TP.iframe.style.height = "100%";
+  TP.iframe.style.position = "fixed";
+  TP.iframe.style.left = "50%";
+  TP.iframe.style.top = "14%";
+  TP.iframe.style.transform = "translateX(-50%)";
+  TP.iframe.style.width = "min(900px, calc(100% - 24px))";
+  TP.iframe.style.height = "560px";
+  TP.iframe.style.borderRadius = "12px";
+  TP.iframe.style.overflow = "hidden";
   TP.iframe.style.border = "0";
   TP.iframe.style.pointerEvents = "auto";
+  TP.iframe.style.background = "#111";
+  TP.iframe.style.display = "block";
+  TP.iframe.setAttribute("allowtransparency", "true");
   TP.iframe.addEventListener("load", () => {
     TP.ready = true;
     // If the palette was opened before the iframe finished loading, open it now.
@@ -94,6 +116,10 @@ function showPalette() {
   TP.lastFocused = document.activeElement;
   TP.host.style.display = "block";
   TP.host.style.pointerEvents = "auto";
+  if (TP.backdrop) {
+    TP.backdrop.style.display = "block";
+  }
+  TP.iframe.style.display = "block";
 
   // Tell iframe to open + focus input
   if (TP.ready) {
@@ -106,6 +132,9 @@ function hidePalette() {
   TP.open = false;
   if (TP.iframe?.contentWindow) {
     TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_BLUR" }, "*");
+  }
+  if (TP.backdrop) {
+    TP.backdrop.style.display = "none";
   }
   TP.host.style.pointerEvents = "none";
   TP.host.style.display = "none";
