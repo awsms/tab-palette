@@ -176,8 +176,20 @@ body.sidepanel #list {
   gap: 2px;
 }
 
-.close-btn {
+.row-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.media-indicator {
+  font-size: 14px;
+  line-height: 1;
+  color: rgba(255,255,255,0.8);
+}
+
+.close-btn {
   border: 0;
   background: transparent;
   color: rgba(255,255,255,0.6);

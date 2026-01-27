@@ -39,6 +39,11 @@ chrome.runtime.onMessage.addListener((msg) => {
       togglePalette();
     })();
   }
+  if (msg?.type === "TP_TAB_UPDATE") {
+    if (TP.iframe?.contentWindow) {
+      TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_TAB_UPDATE", payload: msg.tab }, "*");
+    }
+  }
 });
 
 document.addEventListener("visibilitychange", () => {

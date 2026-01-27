@@ -295,7 +295,10 @@ function applyFilter() {
     items = sortTabs(items);
   }
 
-  filtered = items;
+  const audible = [];
+  const rest = [];
+  items.forEach(tab => (tab.audible ? audible : rest).push(tab));
+  filtered = audible.concat(rest);
   if (selectedIndex >= filtered.length) selectedIndex = Math.max(0, filtered.length - 1);
   render();
 }
@@ -306,6 +309,14 @@ function handleTabs(resp) {
   buildSortOptions(hasGroups);
   applyFilter();
   selectedIndex = 0;
+}
+
+function handleTabUpdate(tab) {
+  if (!tab || typeof tab.id !== "number") return;
+  const idx = allTabs.findIndex(t => t.id === tab.id);
+  if (idx === -1) return;
+  allTabs[idx] = { ...allTabs[idx], ...tab };
+  applyFilter();
 }
 
 function render() {
@@ -369,6 +380,17 @@ function render() {
     row.appendChild(icon);
     row.appendChild(meta);
 
+    const right = document.createElement("div");
+    right.className = "row-right";
+
+    if (tab.audible) {
+      const indicator = document.createElement("span");
+      indicator.className = "media-indicator";
+      indicator.title = tab.muted ? "Muted tab" : "Playing audio";
+      indicator.textContent = tab.muted ? "🔇" : "🔊";
+      right.appendChild(indicator);
+    }
+
     const closeBtn = document.createElement("button");
     closeBtn.className = "close-btn";
     closeBtn.type = "button";
@@ -379,8 +401,8 @@ function render() {
       e.stopPropagation();
       closeTab(tab.id);
     });
-
-    row.appendChild(closeBtn);
+    right.appendChild(closeBtn);
+    row.appendChild(right);
 
     row.addEventListener("mousemove", () => {
       selectedIndex = idx;
@@ -532,12 +554,23 @@ if (!isSidePanel) {
       handleTabs(resp);
       return;
     }
+
+    if (data.type === "TP_TAB_UPDATE") {
+      handleTabUpdate(data.payload);
+      return;
+    }
   });
 } else {
   window.addEventListener("load", () => {
     openPalette();
   });
 }
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === "TP_TAB_UPDATE") {
+    handleTabUpdate(msg.tab);
+  }
+});
 
 window.addEventListener("keydown", (e) => {
   if (!open) return;

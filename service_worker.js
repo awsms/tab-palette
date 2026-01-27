@@ -75,6 +75,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         title: t.title || "",
         url: t.url || "",
         favIconUrl: t.favIconUrl || "",
+        audible: !!t.audible,
+        muted: !!t.mutedInfo?.muted,
         lastAccessed: t.lastAccessed || 0,
         groupId: typeof t.groupId === "number" ? t.groupId : -1,
         groupTitle: groupMap[t.groupId]?.title || "",
@@ -151,4 +153,53 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   return false;
+});
+
+async function buildTabPayload(t) {
+  let groupTitle = "";
+  let groupColor = "";
+  let groupCollapsed = false;
+  if (typeof t.groupId === "number" && t.groupId >= 0) {
+    try {
+      const g = await chrome.tabGroups.get(t.groupId);
+      groupTitle = g.title || "";
+      groupColor = g.color || "";
+      groupCollapsed = !!g.collapsed;
+    } catch {
+      // ignore
+    }
+  }
+  return {
+    id: t.id,
+    windowId: t.windowId,
+    index: t.index,
+    active: !!t.active,
+    pinned: !!t.pinned,
+    title: t.title || "",
+    url: t.url || "",
+    favIconUrl: t.favIconUrl || "",
+    audible: !!t.audible,
+    muted: !!t.mutedInfo?.muted,
+    lastAccessed: t.lastAccessed || 0,
+    groupId: typeof t.groupId === "number" ? t.groupId : -1,
+    groupTitle,
+    groupColor,
+    groupCollapsed
+  };
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (!tab?.id) return;
+  const keys = ["audible", "mutedInfo", "title", "favIconUrl", "url", "groupId"];
+  const changed = keys.some(k => k in changeInfo);
+  if (!changed) return;
+  const payload = await buildTabPayload(tab);
+  chrome.runtime.sendMessage({ type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+  if (typeof tab.windowId === "number") {
+    chrome.tabs.query({ active: true, windowId: tab.windowId }).then((tabs) => {
+      const active = tabs[0];
+      if (!active?.id) return;
+      chrome.tabs.sendMessage(active.id, { type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+    }).catch(() => {});
+  }
 });
