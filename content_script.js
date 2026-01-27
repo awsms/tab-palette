@@ -4,7 +4,8 @@ const TP = {
   host: null,
   shadow: null,
   iframe: null,
-  open: false
+  open: false,
+  ready: false
 };
 
 chrome.runtime.onMessage.addListener((msg) => {
@@ -33,6 +34,13 @@ function ensureUI() {
   TP.iframe.style.height = "100%";
   TP.iframe.style.border = "0";
   TP.iframe.style.pointerEvents = "auto";
+  TP.iframe.addEventListener("load", () => {
+    TP.ready = true;
+    // If the palette was opened before the iframe finished loading, open it now.
+    if (TP.open) {
+      TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
+    }
+  });
 
   TP.shadow.appendChild(TP.iframe);
 
@@ -76,7 +84,9 @@ function showPalette() {
   TP.host.style.pointerEvents = "auto";
 
   // Tell iframe to open + focus input
-  TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
+  if (TP.ready) {
+    TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
+  }
 }
 
 function hidePalette() {
