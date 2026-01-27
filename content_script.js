@@ -267,6 +267,24 @@ function hidePalette() {
 }
 
 function togglePalette() {
-  if (!TP.open) showPalette();
-  else hidePalette();
+  if (!TP.open) {
+    const active = document.activeElement;
+    if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) {
+      const el = active;
+      if (typeof el.selectionStart === "number" && typeof el.selectionEnd === "number") {
+        if (el.selectionStart !== el.selectionEnd) {
+          el.selectionEnd = el.selectionStart;
+          return;
+        }
+      }
+    }
+    const sel = window.getSelection && window.getSelection();
+    if (sel && !sel.isCollapsed) {
+      sel.removeAllRanges();
+      return;
+    }
+    showPalette();
+  } else {
+    hidePalette();
+  }
 }
