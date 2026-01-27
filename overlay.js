@@ -54,6 +54,10 @@ function post(msg) {
   window.parent.postMessage({ __tp: true, ...msg }, "*");
 }
 
+function notifyReady() {
+  post({ type: "TP_READY" });
+}
+
 function notifySize() {
   if (!panelEl) return;
   const rect = panelEl.getBoundingClientRect();
@@ -247,6 +251,7 @@ function render() {
     empty.textContent = "No matching tabs";
     empty.style.color = "rgba(255,255,255,0.7)";
     listEl.appendChild(empty);
+    requestAnimationFrame(notifyReady);
     requestAnimationFrame(notifySize);
     return;
   }
@@ -311,6 +316,7 @@ function render() {
   });
 
   scrollSelectedIntoView();
+  requestAnimationFrame(notifyReady);
   requestAnimationFrame(notifySize);
 }
 

@@ -10,7 +10,12 @@ const TP = {
   baseDpr: null,
   uiScale: 1,
   settingsBound: false,
-  currentScale: 1
+  currentScale: 1,
+  readyToShow: false,
+  sizeReady: false,
+  showTimer: null,
+  forceShow: false,
+  lastContentHeight: null
 };
 
 const STORAGE_KEYS = {
@@ -87,11 +92,20 @@ function ensureUI() {
       return;
     }
 
+    if (data.type === "TP_READY") {
+      TP.readyToShow = true;
+      maybeShowIframe();
+      return;
+    }
+
     if (data.type === "TP_SIZE") {
       if (!TP.iframe || typeof data.height !== "number") return;
       const scale = TP.currentScale || 1;
       const height = Math.ceil(data.height / scale);
+      TP.lastContentHeight = data.height;
       TP.iframe.style.height = `${height}px`;
+      TP.sizeReady = true;
+      maybeShowIframe();
       return;
     }
   });
@@ -114,14 +128,37 @@ function updateScale() {
   const inv = TP.baseDpr / currentDpr;
   const scale = inv * (TP.uiScale || 1);
   TP.currentScale = scale || 1;
-  TP.iframe.style.transform = `translateX(-50%) scale(${scale})`;
+  TP.iframe.style.transform = `translateX(-50%) scale(${TP.currentScale})`;
   TP.iframe.style.transformOrigin = "top center";
+  if (typeof TP.lastContentHeight === "number") {
+    const height = Math.ceil(TP.lastContentHeight / TP.currentScale);
+    TP.iframe.style.height = `${height}px`;
+  }
+}
+
+function maybeShowIframe() {
+  if (!TP.iframe) return;
+  if (!TP.readyToShow) return;
+  if (!TP.sizeReady && !TP.forceShow) return;
+  TP.iframe.style.visibility = "visible";
+  TP.iframe.style.opacity = "1";
 }
 
 async function loadSettings() {
   const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings]);
   const settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
   TP.uiScale = typeof settings.uiScale === "number" ? settings.uiScale : 1;
+}
+
+async function loadZoomBase() {
+  try {
+    const resp = await chrome.runtime.sendMessage({ type: "TP_GET_ZOOM" });
+    if (!resp?.ok || typeof resp.zoom !== "number") return;
+    const currentDpr = window.devicePixelRatio || 1;
+    TP.baseDpr = currentDpr / (resp.zoom || 1);
+  } catch {
+    // ignore
+  }
 }
 
 function createIframe() {
@@ -143,9 +180,14 @@ function createIframe() {
   TP.iframe.style.pointerEvents = "auto";
   TP.iframe.style.background = "#111";
   TP.iframe.style.display = "block";
+  TP.iframe.style.visibility = "hidden";
+  TP.iframe.style.opacity = "0";
+  TP.iframe.style.transition = "opacity 80ms ease";
   TP.iframe.setAttribute("allowtransparency", "true");
   loadSettings().finally(() => {
-    updateScale();
+    loadZoomBase().finally(() => {
+      updateScale();
+    });
   });
   TP.iframe.addEventListener("load", () => {
     TP.ready = true;
@@ -162,6 +204,14 @@ function showPalette() {
   ensureUI();
   createIframe();
   TP.open = true;
+  TP.readyToShow = true;
+  TP.sizeReady = true;
+  TP.forceShow = true;
+  if (TP.showTimer) {
+    clearTimeout(TP.showTimer);
+    TP.showTimer = null;
+  }
+  maybeShowIframe();
   TP.lastFocused = document.activeElement;
   TP.host.style.display = "block";
   TP.host.style.pointerEvents = "auto";
@@ -170,9 +220,12 @@ function showPalette() {
   }
   TP.iframe.style.display = "block";
   updateScale();
-  if (!TP.viewportBound && window.visualViewport) {
+  if (!TP.viewportBound) {
     TP.viewportBound = true;
-    window.visualViewport.addEventListener("resize", updateScale);
+    window.addEventListener("resize", updateScale);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateScale);
+    }
   }
 
   // Tell iframe to open + focus input

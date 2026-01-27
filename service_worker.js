@@ -83,5 +83,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg?.type === "TP_GET_ZOOM") {
+    (async () => {
+      try {
+        const tabId = sender?.tab?.id;
+        if (typeof tabId !== "number") return sendResponse({ ok: false });
+        const zoom = await chrome.tabs.getZoom(tabId);
+        sendResponse({ ok: true, zoom });
+      } catch {
+        sendResponse({ ok: false });
+      }
+    })();
+    return true;
+  }
+
   return false;
 });
