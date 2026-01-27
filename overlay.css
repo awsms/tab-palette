@@ -119,6 +119,21 @@ html, body {
   gap: 2px;
 }
 
+.close-btn {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.6);
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  color: #fff;
+}
+
 .title {
   font-size: 13px;
   white-space: nowrap;

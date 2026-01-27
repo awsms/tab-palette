@@ -302,6 +302,19 @@ function render() {
     row.appendChild(icon);
     row.appendChild(meta);
 
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "close-btn";
+    closeBtn.type = "button";
+    closeBtn.setAttribute("aria-label", "Close tab");
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeTab(tab.id);
+    });
+
+    row.appendChild(closeBtn);
+
     row.addEventListener("mousemove", () => {
       selectedIndex = idx;
       highlightOnly();
@@ -349,6 +362,15 @@ function activateSelected() {
   const tab = filtered[selectedIndex];
   if (!tab) return;
   post({ type: "TP_ACTIVATE", tabId: tab.id, windowId: tab.windowId });
+}
+
+function closeTab(tabId) {
+  if (typeof tabId !== "number") return;
+  post({ type: "TP_CLOSE_TAB", tabId });
+  allTabs = allTabs.filter(t => t.id !== tabId);
+  filtered = filtered.filter(t => t.id !== tabId);
+  if (selectedIndex >= filtered.length) selectedIndex = Math.max(0, filtered.length - 1);
+  render();
 }
 
 function close() {
