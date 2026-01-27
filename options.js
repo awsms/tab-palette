@@ -10,7 +10,8 @@ const DEFAULT_SETTINGS = {
   searchGroups: true,
   enableGroups: true,
   uiScale: 1,
-  showHints: true
+  showHints: true,
+  displayMode: "overlay"
 };
 
 const sortModeEl = document.getElementById("sortMode");
@@ -21,6 +22,7 @@ const searchGroupsEl = document.getElementById("searchGroups");
 const enableGroupsEl = document.getElementById("enableGroups");
 const showHintsEl = document.getElementById("showHints");
 const uiScaleEl = document.getElementById("uiScale");
+const displayModeEl = document.getElementById("displayMode");
 const saveBtn = document.getElementById("save");
 const resetBtn = document.getElementById("reset");
 const statusEl = document.getElementById("status");
@@ -42,7 +44,8 @@ function readForm() {
     searchGroups: searchGroupsEl.checked,
     enableGroups: enableGroupsEl.checked,
     showHints: showHintsEl.checked,
-    uiScale: Number(uiScaleEl.value) || 1
+    uiScale: Number(uiScaleEl.value) || 1,
+    displayMode: displayModeEl.value
   };
 }
 
@@ -55,6 +58,7 @@ function writeForm(settings) {
   enableGroupsEl.checked = settings.enableGroups;
   showHintsEl.checked = settings.showHints;
   uiScaleEl.value = String(settings.uiScale ?? 1);
+  displayModeEl.value = settings.displayMode || "overlay";
   updateGroupDependents(settings.enableGroups);
 }
 

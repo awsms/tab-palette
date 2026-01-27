@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' https: http: data: chrome-extension: chrome:; style-src 'self' 'unsafe-inline'; script-src 'self';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="overlay.css" />
+    <title>Tab Palette</title>
+  </head>
+  <body class="sidepanel">
+    <div id="backdrop" aria-hidden="true"></div>
+
+    <div id="panel" role="dialog" aria-modal="true" aria-label="Tab palette">
+      <input id="query" type="text" autocomplete="off" spellcheck="false" placeholder="Search tabs…" />
+      <div id="controls">
+        <label class="control" id="groupControl">
+          <span class="label">Group</span>
+          <select id="groupFilter" aria-label="Filter by group"></select>
+        </label>
+        <label class="control">
+          <span class="label">Sort</span>
+          <select id="sortMode" aria-label="Sort tabs"></select>
+        </label>
+        <button id="closeSelected" type="button" class="control-button" disabled>
+          Close selected
+        </button>
+      </div>
+      <div id="hint">↑/↓ navigate • Enter switch • Esc close</div>
+      <div id="list" role="listbox" aria-label="Tabs"></div>
+    </div>
+
+    <script src="overlay.js"></script>
+  </body>
+</html>

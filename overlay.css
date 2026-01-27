@@ -11,6 +11,11 @@ html, body {
   overflow: hidden;
 }
 
+body.sidepanel {
+  background: #0b0b0b !important;
+  overflow: hidden;
+}
+
 #backdrop {
   position: fixed;
   inset: 0;
@@ -27,6 +32,12 @@ html, body {
   border-radius: 12px;
   box-shadow: none;
   overflow: hidden;
+}
+
+body.sidepanel #panel {
+  height: 100%;
+  border-radius: 0;
+  border: 0;
 }
 
 #query {
@@ -103,6 +114,11 @@ html, body {
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.25) rgba(255,255,255,0.06);
+}
+
+body.sidepanel #list {
+  max-height: none;
+  height: calc(100% - 104px);
 }
 
 #list::-webkit-scrollbar {

@@ -4,20 +4,110 @@ chrome.commands.onCommand.addListener(async (command) => {
   const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!activeTab?.id) return;
 
+  console.log("[TP] toggle_palette command", { tabId: activeTab.id, windowId: activeTab.windowId });
+
+  const settingsResp = await chrome.storage.sync.get(["tp_settings"]);
+  const settings = settingsResp.tp_settings || {};
+  console.log("[TP] settings", settings);
+  if (settings.displayMode === "sidepanel") {
+    try {
+      console.log("[TP] enabling side panel");
+      await chrome.sidePanel.setOptions({
+        tabId: activeTab.id,
+        path: "sidepanel.html",
+        enabled: true
+      });
+      try {
+        console.log("[TP] opening side panel (tabId)");
+        await chrome.sidePanel.open({ tabId: activeTab.id });
+      } catch {
+        console.log("[TP] opening side panel (windowId)");
+        await chrome.sidePanel.open({ windowId: activeTab.windowId });
+      }
+      console.log("[TP] side panel opened");
+      return;
+    } catch (err) {
+      console.log("[TP] side panel failed (likely needs user gesture)", err);
+      return;
+    }
+  }
+
   // Ask content script to toggle the UI; it will request tab data when needed.
-  chrome.tabs.sendMessage(activeTab.id, { type: "TP_TOGGLE" }).catch(() => {
+  console.log("[TP] toggling overlay");
+  chrome.tabs.sendMessage(activeTab.id, { type: "TP_TOGGLE" }).catch((err) => {
+    console.log("[TP] content script not ready, injecting", err);
     // If content script isn't ready (rare), inject it and retry.
     chrome.scripting.executeScript({
       target: { tabId: activeTab.id },
       files: ["content_script.js"]
     }).then(() => {
-      chrome.tabs.sendMessage(activeTab.id, { type: "TP_TOGGLE" }).catch(() => {});
-    }).catch(() => {});
+      console.log("[TP] injected content script");
+      chrome.tabs.sendMessage(activeTab.id, { type: "TP_TOGGLE" }).catch((err2) => {
+        console.log("[TP] toggle after inject failed", err2);
+      });
+    }).catch((err2) => {
+      console.log("[TP] inject failed", err2);
+    });
   });
 });
 
+chrome.runtime.onInstalled.addListener(() => {
+  try {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch {
+    // ignore
+  }
+});
+
+if (chrome.action && chrome.action.onClicked) {
+  chrome.action.onClicked.addListener(async (tab) => {
+    const settingsResp = await chrome.storage.sync.get(["tp_settings"]);
+    const settings = settingsResp.tp_settings || {};
+    if (settings.displayMode !== "sidepanel") {
+      if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "TP_TOGGLE" });
+      return;
+    }
+    try {
+      await chrome.sidePanel.setOptions({
+        tabId: tab.id,
+        path: "sidepanel.html",
+        enabled: true
+      });
+      await chrome.sidePanel.open({ tabId: tab.id });
+    } catch {
+      // ignore
+    }
+  });
+}
+
 // Provide tab data on demand (so content script stays lightweight)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === "TP_OPEN_SIDEPANEL") {
+    (async () => {
+      try {
+        const tabId = sender?.tab?.id;
+        const windowId = sender?.tab?.windowId;
+        if (typeof tabId !== "number") return sendResponse({ ok: false });
+        await chrome.sidePanel.setOptions({
+          tabId,
+          path: "sidepanel.html",
+          enabled: true
+        });
+        try {
+          await chrome.sidePanel.open({ tabId });
+        } catch {
+          if (typeof windowId === "number") {
+            await chrome.sidePanel.open({ windowId });
+          }
+        }
+        sendResponse({ ok: true });
+      } catch (err) {
+        console.log("[TP] side panel open via keydown failed", err);
+        sendResponse({ ok: false });
+      }
+    })();
+    return true;
+  }
   if (msg?.type === "TP_GET_TABS") {
     (async () => {
       const currentWindow = msg.currentWindow !== false;

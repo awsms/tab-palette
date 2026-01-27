@@ -21,6 +21,8 @@ let anchorIndex = null;
 
 let settingsBound = false;
 
+const isSidePanel = window.location.pathname.endsWith("sidepanel.html");
+
 const STORAGE_KEYS = {
   settings: "tp_settings",
   state: "tp_state"
@@ -59,14 +61,37 @@ const GROUP_COLORS = {
 };
 
 function post(msg) {
-  window.parent.postMessage({ __tp: true, ...msg }, "*");
+  if (!isSidePanel) {
+    window.parent.postMessage({ __tp: true, ...msg }, "*");
+    return;
+  }
+  if (msg.type === "TP_REQUEST_TABS") {
+    chrome.runtime.sendMessage({ type: "TP_GET_TABS", currentWindow: true }).then((resp) => {
+      if (!resp?.ok) return;
+      handleTabs(resp);
+    });
+    return;
+  }
+  if (msg.type === "TP_ACTIVATE") {
+    chrome.runtime.sendMessage({ type: "TP_ACTIVATE_TAB", tabId: msg.tabId, windowId: msg.windowId });
+    return;
+  }
+  if (msg.type === "TP_CLOSE_TAB") {
+    chrome.runtime.sendMessage({ type: "TP_CLOSE_TAB", tabId: msg.tabId });
+    return;
+  }
+  if (msg.type === "TP_CLOSE_TABS") {
+    chrome.runtime.sendMessage({ type: "TP_CLOSE_TABS", tabIds: msg.tabIds });
+  }
 }
 
 function notifyReady() {
+  if (isSidePanel) return;
   post({ type: "TP_READY" });
 }
 
 function notifySize() {
+  if (isSidePanel) return;
   if (!panelEl) return;
   const rect = panelEl.getBoundingClientRect();
   const height = Math.ceil(rect.height);
@@ -275,6 +300,14 @@ function applyFilter() {
   render();
 }
 
+function handleTabs(resp) {
+  allTabs = resp.tabs || [];
+  const hasGroups = buildGroupOptions(allTabs);
+  buildSortOptions(hasGroups);
+  applyFilter();
+  selectedIndex = 0;
+}
+
 function render() {
   listEl.innerHTML = "";
 
@@ -470,40 +503,41 @@ function openPalette() {
   setTimeout(() => queryEl.focus(), 0);
 }
 
-window.addEventListener("message", (ev) => {
-  const data = ev.data;
-  if (!data || data.__tp !== true) return;
+if (!isSidePanel) {
+  window.addEventListener("message", (ev) => {
+    const data = ev.data;
+    if (!data || data.__tp !== true) return;
 
-  if (data.type === "TP_OPEN") {
-    openPalette();
-    return;
-  }
-
-  if (data.type === "TP_FORCE_FOCUS") {
-    setTimeout(() => queryEl.focus(), 0);
-    return;
-  }
-
-  if (data.type === "TP_BLUR") {
-    if (document.activeElement && typeof document.activeElement.blur === "function") {
-      document.activeElement.blur();
+    if (data.type === "TP_OPEN") {
+      openPalette();
+      return;
     }
-    queryEl.blur();
-    return;
-  }
 
-  if (data.type === "TP_TABS") {
-    const resp = data.payload;
-    if (!resp?.ok) return;
+    if (data.type === "TP_FORCE_FOCUS") {
+      setTimeout(() => queryEl.focus(), 0);
+      return;
+    }
 
-    allTabs = resp.tabs || [];
-    const hasGroups = buildGroupOptions(allTabs);
-    buildSortOptions(hasGroups);
-    applyFilter();
-    selectedIndex = 0;
-    return;
-  }
-});
+    if (data.type === "TP_BLUR") {
+      if (document.activeElement && typeof document.activeElement.blur === "function") {
+        document.activeElement.blur();
+      }
+      queryEl.blur();
+      return;
+    }
+
+    if (data.type === "TP_TABS") {
+      const resp = data.payload;
+      if (!resp?.ok) return;
+      handleTabs(resp);
+      return;
+    }
+  });
+} else {
+  window.addEventListener("load", () => {
+    openPalette();
+  });
+}
 
 window.addEventListener("keydown", (e) => {
   if (!open) return;
