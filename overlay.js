@@ -10,6 +10,30 @@ let filtered = [];
 let selectedIndex = 0;
 let open = false;
 
+const GROUP_COLORS = {
+  grey: "#9aa0a6",
+  blue: "#8ab4f8",
+  red: "#f28b82",
+  yellow: "#fdd663",
+  green: "#81c995",
+  pink: "#ff8ab7",
+  purple: "#d7aefb",
+  cyan: "#78d9ec",
+  orange: "#fcad70"
+};
+
+const GROUP_COLORS = {
+  grey: "#9aa0a6",
+  blue: "#8ab4f8",
+  red: "#f28b82",
+  yellow: "#fdd663",
+  green: "#81c995",
+  pink: "#ff8ab7",
+  purple: "#d7aefb",
+  cyan: "#78d9ec",
+  orange: "#fcad70"
+};
+
 function post(msg) {
   window.parent.postMessage({ __tp: true, ...msg }, "*");
 }
@@ -88,6 +112,40 @@ function render() {
 
     meta.appendChild(title);
     meta.appendChild(url);
+    if (typeof tab.groupId === "number" && tab.groupId >= 0) {
+      const group = document.createElement("div");
+      group.className = "group";
+
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      if (tab.groupColor && GROUP_COLORS[tab.groupColor]) {
+        dot.style.background = GROUP_COLORS[tab.groupColor];
+      }
+
+      const label = document.createElement("span");
+      label.textContent = tab.groupTitle || "(untitled group)";
+
+      group.appendChild(dot);
+      group.appendChild(label);
+      meta.appendChild(group);
+    }
+    if (typeof tab.groupId === "number" && tab.groupId >= 0) {
+      const group = document.createElement("div");
+      group.className = "group";
+
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      if (tab.groupColor && GROUP_COLORS[tab.groupColor]) {
+        dot.style.background = GROUP_COLORS[tab.groupColor];
+      }
+
+      const label = document.createElement("span");
+      label.textContent = tab.groupTitle || "(untitled group)";
+
+      group.appendChild(dot);
+      group.appendChild(label);
+      meta.appendChild(group);
+    }
 
     row.appendChild(icon);
     row.appendChild(meta);

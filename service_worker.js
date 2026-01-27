@@ -25,6 +25,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const currentWindow = msg.currentWindow !== false;
 
       const tabs = await chrome.tabs.query(currentWindow ? { currentWindow: true } : {});
+      const groupIds = Array.from(
+        new Set(tabs.map(t => t.groupId).filter(id => typeof id === "number" && id >= 0))
+      );
+      const groupMap = {};
+      await Promise.all(groupIds.map(async (id) => {
+        try {
+          const g = await chrome.tabGroups.get(id);
+          groupMap[id] = {
+            id,
+            title: g.title || "",
+            color: g.color || "",
+            collapsed: !!g.collapsed
+          };
+        } catch {
+          // ignore missing/permission errors
+        }
+      }));
       // Normalize fields for the UI
       const payload = tabs.map(t => ({
         id: t.id,
@@ -34,7 +51,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         pinned: !!t.pinned,
         title: t.title || "",
         url: t.url || "",
-        favIconUrl: t.favIconUrl || ""
+        favIconUrl: t.favIconUrl || "",
+        lastAccessed: t.lastAccessed || 0,
+        groupId: typeof t.groupId === "number" ? t.groupId : -1,
+        groupTitle: groupMap[t.groupId]?.title || "",
+        groupColor: groupMap[t.groupId]?.color || "",
+        groupCollapsed: groupMap[t.groupId]?.collapsed || false
       }));
 
       sendResponse({ ok: true, tabs: payload });
