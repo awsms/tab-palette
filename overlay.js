@@ -4,6 +4,7 @@
 const queryEl = document.getElementById("query");
 const listEl = document.getElementById("list");
 const backdropEl = document.getElementById("backdrop");
+const panelEl = document.getElementById("panel");
 const groupFilterEl = document.getElementById("groupFilter");
 const sortModeEl = document.getElementById("sortMode");
 const groupControlEl = document.getElementById("groupControl");
@@ -51,6 +52,13 @@ const GROUP_COLORS = {
 
 function post(msg) {
   window.parent.postMessage({ __tp: true, ...msg }, "*");
+}
+
+function notifySize() {
+  if (!panelEl) return;
+  const rect = panelEl.getBoundingClientRect();
+  const height = Math.ceil(rect.height);
+  post({ type: "TP_SIZE", height });
 }
 
 function scoreTab(tab, q) {
@@ -239,6 +247,7 @@ function render() {
     empty.textContent = "No matching tabs";
     empty.style.color = "rgba(255,255,255,0.7)";
     listEl.appendChild(empty);
+    requestAnimationFrame(notifySize);
     return;
   }
 
@@ -302,6 +311,7 @@ function render() {
   });
 
   scrollSelectedIntoView();
+  requestAnimationFrame(notifySize);
 }
 
 function highlightOnly() {

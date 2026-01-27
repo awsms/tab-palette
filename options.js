@@ -8,7 +8,8 @@ const DEFAULT_SETTINGS = {
   rememberSort: true,
   rememberFilter: true,
   searchGroups: true,
-  enableGroups: true
+  enableGroups: true,
+  uiScale: 1
 };
 
 const sortModeEl = document.getElementById("sortMode");
@@ -17,6 +18,7 @@ const rememberSortEl = document.getElementById("rememberSort");
 const rememberFilterEl = document.getElementById("rememberFilter");
 const searchGroupsEl = document.getElementById("searchGroups");
 const enableGroupsEl = document.getElementById("enableGroups");
+const uiScaleEl = document.getElementById("uiScale");
 const saveBtn = document.getElementById("save");
 const resetBtn = document.getElementById("reset");
 const statusEl = document.getElementById("status");
@@ -36,7 +38,8 @@ function readForm() {
     rememberSort: rememberSortEl.checked,
     rememberFilter: rememberFilterEl.checked,
     searchGroups: searchGroupsEl.checked,
-    enableGroups: enableGroupsEl.checked
+    enableGroups: enableGroupsEl.checked,
+    uiScale: Number(uiScaleEl.value) || 1
   };
 }
 
@@ -47,6 +50,7 @@ function writeForm(settings) {
   rememberFilterEl.checked = settings.rememberFilter;
   searchGroupsEl.checked = settings.searchGroups;
   enableGroupsEl.checked = settings.enableGroups;
+  uiScaleEl.value = String(settings.uiScale ?? 1);
   updateGroupDependents(settings.enableGroups);
 }
 

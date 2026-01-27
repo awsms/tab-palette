@@ -5,7 +5,19 @@ const TP = {
   backdrop: null,
   open: false,
   ready: false,
-  lastFocused: null
+  lastFocused: null,
+  viewportBound: false,
+  baseDpr: null,
+  uiScale: 1,
+  settingsBound: false
+};
+
+const STORAGE_KEYS = {
+  settings: "tp_settings"
+};
+
+const DEFAULT_SETTINGS = {
+  uiScale: 1
 };
 
 chrome.runtime.onMessage.addListener((msg) => {
@@ -73,7 +85,39 @@ function ensureUI() {
       hidePalette();
       return;
     }
+
+    if (data.type === "TP_SIZE") {
+      if (!TP.iframe || typeof data.height !== "number") return;
+      TP.iframe.style.height = `${Math.ceil(data.height)}px`;
+      return;
+    }
   });
+
+  if (!TP.settingsBound) {
+    TP.settingsBound = true;
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "sync" || !changes[STORAGE_KEYS.settings]) return;
+      const next = changes[STORAGE_KEYS.settings].newValue || {};
+      TP.uiScale = typeof next.uiScale === "number" ? next.uiScale : 1;
+      updateScale();
+    });
+  }
+}
+
+function updateScale() {
+  if (!TP.iframe) return;
+  const currentDpr = window.devicePixelRatio || 1;
+  if (!TP.baseDpr) TP.baseDpr = currentDpr;
+  const inv = TP.baseDpr / currentDpr;
+  const scale = inv * (TP.uiScale || 1);
+  TP.iframe.style.transform = `translateX(-50%) scale(${scale})`;
+  TP.iframe.style.transformOrigin = "top center";
+}
+
+async function loadSettings() {
+  const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings]);
+  const settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
+  TP.uiScale = typeof settings.uiScale === "number" ? settings.uiScale : 1;
 }
 
 function createIframe() {
@@ -96,6 +140,9 @@ function createIframe() {
   TP.iframe.style.background = "#111";
   TP.iframe.style.display = "block";
   TP.iframe.setAttribute("allowtransparency", "true");
+  loadSettings().finally(() => {
+    updateScale();
+  });
   TP.iframe.addEventListener("load", () => {
     TP.ready = true;
     // If the palette was opened before the iframe finished loading, open it now.
@@ -118,6 +165,11 @@ function showPalette() {
     TP.backdrop.style.display = "block";
   }
   TP.iframe.style.display = "block";
+  updateScale();
+  if (!TP.viewportBound && window.visualViewport) {
+    TP.viewportBound = true;
+    window.visualViewport.addEventListener("resize", updateScale);
+  }
 
   // Tell iframe to open + focus input
   if (TP.ready) {
