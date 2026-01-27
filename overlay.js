@@ -4,22 +4,19 @@
 const queryEl = document.getElementById("query");
 const listEl = document.getElementById("list");
 const backdropEl = document.getElementById("backdrop");
+const groupFilterEl = document.getElementById("groupFilter");
+const sortModeEl = document.getElementById("sortMode");
+const groupControlEl = document.getElementById("groupControl");
 
 let allTabs = [];
 let filtered = [];
 let selectedIndex = 0;
 let open = false;
+let currentSort = "lastAccessed";
+let currentGroup = "all";
 
-const GROUP_COLORS = {
-  grey: "#9aa0a6",
-  blue: "#8ab4f8",
-  red: "#f28b82",
-  yellow: "#fdd663",
-  green: "#81c995",
-  pink: "#ff8ab7",
-  purple: "#d7aefb",
-  cyan: "#78d9ec",
-  orange: "#fcad70"
+const STORAGE_KEYS = {
+  state: "tp_state"
 };
 
 const GROUP_COLORS = {
@@ -58,16 +55,129 @@ function scoreTab(tab, q) {
   return score;
 }
 
+function normalizeTitle(tab) {
+  return (tab.title || tab.url || "").toLowerCase();
+}
+
+function sortTabs(items) {
+  const list = items.slice();
+  if (currentSort === "alpha") {
+    list.sort((a, b) => normalizeTitle(a).localeCompare(normalizeTitle(b)));
+    return list;
+  }
+  if (currentSort === "group") {
+    list.sort((a, b) => {
+      const ag = a.groupId >= 0 ? (a.groupTitle || "(untitled group)") : "\uffff";
+      const bg = b.groupId >= 0 ? (b.groupTitle || "(untitled group)") : "\uffff";
+      const gc = ag.localeCompare(bg);
+      if (gc !== 0) return gc;
+      return normalizeTitle(a).localeCompare(normalizeTitle(b));
+    });
+    return list;
+  }
+  // lastAccessed (default)
+  list.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  return list;
+}
+
+function buildSortOptions(hasGroups) {
+  sortModeEl.innerHTML = "";
+  const options = [
+    { value: "lastAccessed", label: "Last opened" },
+    { value: "alpha", label: "Alphabetical" }
+  ];
+  if (hasGroups) {
+    options.push({ value: "group", label: "By group" });
+  }
+  options.forEach(opt => {
+    const el = document.createElement("option");
+    el.value = opt.value;
+    el.textContent = opt.label;
+    sortModeEl.appendChild(el);
+  });
+  if (!hasGroups && currentSort === "group") currentSort = "lastAccessed";
+  sortModeEl.value = currentSort;
+}
+
+function buildGroupOptions(tabs) {
+  const groups = new Map();
+  tabs.forEach(tab => {
+    if (tab.groupId >= 0) {
+      groups.set(tab.groupId, {
+        id: tab.groupId,
+        title: tab.groupTitle || "(untitled group)"
+      });
+    }
+  });
+  const sorted = Array.from(groups.values()).sort((a, b) => a.title.localeCompare(b.title));
+
+  groupFilterEl.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "all";
+  all.textContent = "All groups";
+  groupFilterEl.appendChild(all);
+
+  const ungrouped = document.createElement("option");
+  ungrouped.value = "ungrouped";
+  ungrouped.textContent = "Ungrouped";
+  groupFilterEl.appendChild(ungrouped);
+
+  sorted.forEach(group => {
+    const opt = document.createElement("option");
+    opt.value = String(group.id);
+    opt.textContent = group.title;
+    groupFilterEl.appendChild(opt);
+  });
+
+  if (currentGroup !== "all" && currentGroup !== "ungrouped") {
+    const exists = sorted.some(g => String(g.id) === String(currentGroup));
+    if (!exists) currentGroup = "all";
+  }
+  groupFilterEl.value = currentGroup;
+  groupControlEl.style.display = sorted.length > 0 ? "flex" : "none";
+  return sorted.length > 0;
+}
+
+async function loadState() {
+  const resp = await chrome.storage.sync.get([STORAGE_KEYS.state]);
+  const state = resp[STORAGE_KEYS.state] || {};
+  if (state.sortMode) currentSort = state.sortMode;
+  if (state.groupFilter) currentGroup = state.groupFilter;
+}
+
+function saveState() {
+  chrome.storage.sync.set({
+    [STORAGE_KEYS.state]: {
+      sortMode: currentSort,
+      groupFilter: currentGroup
+    }
+  });
+}
+
 function applyFilter() {
   const q = queryEl.value.trim().toLowerCase();
 
   let items = allTabs.slice();
+  if (currentGroup === "ungrouped") {
+    items = items.filter(tab => tab.groupId < 0);
+  } else if (currentGroup !== "all") {
+    const groupId = Number(currentGroup);
+    if (!Number.isNaN(groupId)) {
+      items = items.filter(tab => tab.groupId === groupId);
+    }
+  }
   if (q) {
     items = items
       .map(tab => ({ tab, s: scoreTab(tab, q) }))
       .filter(x => x.s > 0)
-      .sort((a, b) => b.s - a.s)
+      .sort((a, b) => {
+        const sd = b.s - a.s;
+        if (sd !== 0) return sd;
+        return normalizeTitle(a.tab).localeCompare(normalizeTitle(b.tab));
+      })
       .map(x => x.tab);
+  } else {
+    items = sortTabs(items);
   }
 
   filtered = items;
@@ -112,23 +222,6 @@ function render() {
 
     meta.appendChild(title);
     meta.appendChild(url);
-    if (typeof tab.groupId === "number" && tab.groupId >= 0) {
-      const group = document.createElement("div");
-      group.className = "group";
-
-      const dot = document.createElement("span");
-      dot.className = "dot";
-      if (tab.groupColor && GROUP_COLORS[tab.groupColor]) {
-        dot.style.background = GROUP_COLORS[tab.groupColor];
-      }
-
-      const label = document.createElement("span");
-      label.textContent = tab.groupTitle || "(untitled group)";
-
-      group.appendChild(dot);
-      group.appendChild(label);
-      meta.appendChild(group);
-    }
     if (typeof tab.groupId === "number" && tab.groupId >= 0) {
       const group = document.createElement("div");
       group.className = "group";
@@ -203,6 +296,7 @@ function close() {
 }
 
 function openPalette() {
+  if (open) return;
   open = true;
   queryEl.value = "";
   selectedIndex = 0;
@@ -210,8 +304,10 @@ function openPalette() {
   allTabs = [];
   filtered = [];
 
-  // Request tabs
-  post({ type: "TP_REQUEST_TABS" });
+  loadState().finally(() => {
+    // Request tabs
+    post({ type: "TP_REQUEST_TABS" });
+  });
 
   // Focus after a tick to ensure iframe is ready
   setTimeout(() => queryEl.focus(), 0);
@@ -231,13 +327,10 @@ window.addEventListener("message", (ev) => {
     if (!resp?.ok) return;
 
     allTabs = resp.tabs || [];
-
-    // Put active tab near top? (optional)
-    allTabs.sort((a, b) => (b.active === true) - (a.active === true));
-
-    filtered = allTabs.slice();
+    const hasGroups = buildGroupOptions(allTabs);
+    buildSortOptions(hasGroups);
+    applyFilter();
     selectedIndex = 0;
-    render();
     return;
   }
 });
@@ -271,6 +364,16 @@ window.addEventListener("keydown", (e) => {
 });
 
 queryEl.addEventListener("input", () => applyFilter());
+sortModeEl.addEventListener("change", () => {
+  currentSort = sortModeEl.value;
+  saveState();
+  applyFilter();
+});
+groupFilterEl.addEventListener("change", () => {
+  currentGroup = groupFilterEl.value;
+  saveState();
+  applyFilter();
+});
 backdropEl.addEventListener("mousedown", (e) => {
   e.preventDefault();
   close();

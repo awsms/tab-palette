@@ -15,6 +15,16 @@
 
     <div id="panel" role="dialog" aria-modal="true" aria-label="Tab palette">
       <input id="query" type="text" autocomplete="off" spellcheck="false" placeholder="Search tabs…" />
+      <div id="controls">
+        <label class="control" id="groupControl">
+          <span class="label">Group</span>
+          <select id="groupFilter" aria-label="Filter by group"></select>
+        </label>
+        <label class="control">
+          <span class="label">Sort</span>
+          <select id="sortMode" aria-label="Sort tabs"></select>
+        </label>
+      </div>
       <div id="hint">↑/↓ navigate • Enter switch • Esc close</div>
       <div id="list" role="listbox" aria-label="Tabs"></div>
     </div>
