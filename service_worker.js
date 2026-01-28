@@ -203,3 +203,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     }).catch(() => {});
   }
 });
+
+chrome.tabs.onActivated.addListener(async (info) => {
+  if (!info?.tabId) return;
+  try {
+    const tab = await chrome.tabs.get(info.tabId);
+    if (!tab?.id) return;
+    const payload = await buildTabPayload(tab);
+    chrome.runtime.sendMessage({ type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+  } catch {
+    // ignore
+  }
+});
