@@ -3,7 +3,7 @@
   "name": "Tab Palette",
   "version": "1.0.0",
   "description": "Keyboard tab switcher palette (search + arrow nav + enter).",
-  "permissions": ["tabs", "activeTab", "scripting", "tabGroups", "storage", "sidePanel"],
+  "permissions": ["tabs", "activeTab", "scripting", "tabGroups", "storage", "sidePanel", "favicon"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "service_worker.js"
