@@ -6,7 +6,7 @@
   "permissions": ["tabs", "activeTab", "scripting", "tabGroups", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "scripts": ["background_firefox.js"]
+    "scripts": ["service_worker.js"]
   },
   "action": {
     "default_title": "Tab Palette"

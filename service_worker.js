@@ -1,216 +1,221 @@
-chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "toggle_palette") return;
+const extensionApi = globalThis.browser ?? globalThis.chrome;
+const isFirefox = typeof globalThis.browser !== "undefined";
+const hasTabGroups = !!extensionApi.tabGroups?.get;
+const hasSidePanel = !!extensionApi.sidePanel?.open;
+const hasChromeFavicon = !!(globalThis.chrome?.runtime?.id && !isFirefox);
 
-  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!activeTab?.id) return;
-
-  console.log("[TP] toggle_palette command", { tabId: activeTab.id, windowId: activeTab.windowId });
-  // Ask content script to toggle the UI; it will request tab data when needed.
-  chrome.tabs.sendMessage(activeTab.id, { type: "TP_TOGGLE" }).catch((err) => {
-    // If content script isn't ready (rare), inject it and retry.
-    chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      files: ["content_script.js"]
-    }).then(() => {
-      chrome.tabs.sendMessage(activeTab.id, { type: "TP_TOGGLE" }).catch((err2) => {
-      });
-    }).catch(() => {});
-  });
-});
-
-chrome.runtime.onInstalled.addListener(() => {
-  try {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-  } catch {
-    // ignore
-  }
-});
-
-if (chrome.action && chrome.action.onClicked) {
-chrome.action.onClicked.addListener(async (tab) => {
-  try {
-    await chrome.sidePanel.setOptions({
-      tabId: tab.id,
-      path: "sidepanel.html",
-      enabled: true
-    });
-    await chrome.sidePanel.open({ tabId: tab.id });
-  } catch {
-    // ignore
-  }
-});
+async function toggleInTab(tabId) {
+  await extensionApi.tabs.sendMessage(tabId, { type: "TP_TOGGLE" });
 }
 
-// Provide tab data on demand (so content script stays lightweight)
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type === "TP_GET_TABS") {
-    (async () => {
-      const currentWindow = msg.currentWindow !== false;
+async function ensureContentScript(tabId) {
+  await extensionApi.scripting.executeScript({
+    target: { tabId },
+    files: ["content_script.js"]
+  });
+}
 
-      const tabs = await chrome.tabs.query(currentWindow ? { currentWindow: true } : {});
-      const groupIds = Array.from(
-        new Set(tabs.map(t => t.groupId).filter(id => typeof id === "number" && id >= 0))
-      );
-      const groupMap = {};
-      await Promise.all(groupIds.map(async (id) => {
-        try {
-          const g = await chrome.tabGroups.get(id);
-          groupMap[id] = {
-            id,
-            title: g.title || "",
-            color: g.color || "",
-            collapsed: !!g.collapsed
-          };
-        } catch {
-          // ignore missing/permission errors
-        }
-      }));
-      // Normalize fields for the UI
-      const payload = tabs.map(t => ({
-        id: t.id,
-        windowId: t.windowId,
-        index: t.index,
-        active: !!t.active,
-        pinned: !!t.pinned,
-        title: t.title || "",
-        url: t.url || "",
-        favIconUrl: `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(t.url || "")}&size=32`,
-        audible: !!t.audible,
-        muted: !!t.mutedInfo?.muted,
-        lastAccessed: t.lastAccessed || 0,
-        groupId: typeof t.groupId === "number" ? t.groupId : -1,
-        groupTitle: groupMap[t.groupId]?.title || "",
-        groupColor: groupMap[t.groupId]?.color || "",
-        groupCollapsed: groupMap[t.groupId]?.collapsed || false
-      }));
-
-      sendResponse({ ok: true, tabs: payload });
-    })();
-
-    // async response
-    return true;
-  }
-
-  if (msg?.type === "TP_ACTIVATE_TAB") {
-    (async () => {
-      const { tabId, windowId } = msg;
-      if (typeof tabId !== "number") return sendResponse({ ok: false });
-
-      try {
-        // Focus window first (helps if activating a tab in another window)
-        if (typeof windowId === "number") {
-          await chrome.windows.update(windowId, { focused: true });
-        }
-        await chrome.tabs.update(tabId, { active: true });
-        sendResponse({ ok: true });
-      } catch {
-        sendResponse({ ok: false });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "TP_CLOSE_TAB") {
-    (async () => {
-      const { tabId } = msg;
-      if (typeof tabId !== "number") return sendResponse({ ok: false });
-      try {
-        await chrome.tabs.remove(tabId);
-        sendResponse({ ok: true });
-      } catch {
-        sendResponse({ ok: false });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "TP_CLOSE_TABS") {
-    (async () => {
-      const { tabIds } = msg;
-      if (!Array.isArray(tabIds) || tabIds.length === 0) return sendResponse({ ok: false });
-      try {
-        await chrome.tabs.remove(tabIds);
-        sendResponse({ ok: true });
-      } catch {
-        sendResponse({ ok: false });
-      }
-    })();
-    return true;
-  }
-
-  if (msg?.type === "TP_GET_ZOOM") {
-    (async () => {
-      try {
-        const tabId = sender?.tab?.id;
-        if (typeof tabId !== "number") return sendResponse({ ok: false });
-        const zoom = await chrome.tabs.getZoom(tabId);
-        sendResponse({ ok: true, zoom });
-      } catch {
-        sendResponse({ ok: false });
-      }
-    })();
-    return true;
-  }
-
-  return false;
-});
-
-async function buildTabPayload(t) {
-  let groupTitle = "";
-  let groupColor = "";
-  let groupCollapsed = false;
-  if (typeof t.groupId === "number" && t.groupId >= 0) {
+async function togglePaletteInActiveTab() {
+  const [activeTab] = await extensionApi.tabs.query({ active: true, currentWindow: true });
+  if (!activeTab?.id) return;
+  try {
+    await toggleInTab(activeTab.id);
+  } catch {
     try {
-      const g = await chrome.tabGroups.get(t.groupId);
-      groupTitle = g.title || "";
-      groupColor = g.color || "";
-      groupCollapsed = !!g.collapsed;
+      await ensureContentScript(activeTab.id);
+      await toggleInTab(activeTab.id);
     } catch {
-      // ignore
+      // ignore failed injection on restricted pages
     }
   }
+}
+
+function getTabFaviconUrl(tab) {
+  if (hasChromeFavicon && tab?.url) {
+    return `chrome-extension://${extensionApi.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(tab.url)}&size=32`;
+  }
+  return tab?.favIconUrl || "";
+}
+
+async function getGroupMap(tabs) {
+  if (!hasTabGroups) return {};
+  const groupIds = Array.from(
+    new Set(tabs.map((tab) => tab.groupId).filter((id) => typeof id === "number" && id >= 0))
+  );
+  const groupMap = {};
+  await Promise.all(groupIds.map(async (id) => {
+    try {
+      const group = await extensionApi.tabGroups.get(id);
+      groupMap[id] = {
+        id,
+        title: group.title || "",
+        color: group.color || "",
+        collapsed: !!group.collapsed
+      };
+    } catch {
+      // ignore missing groups or unsupported cases
+    }
+  }));
+  return groupMap;
+}
+
+function toTabPayload(tab, groupMap = {}) {
   return {
-    id: t.id,
-    windowId: t.windowId,
-    index: t.index,
-    active: !!t.active,
-    pinned: !!t.pinned,
-    title: t.title || "",
-    url: t.url || "",
-    favIconUrl: `chrome-extension://${chrome.runtime.id}/_favicon/?pageUrl=${encodeURIComponent(t.url || "")}&size=32`,
-    audible: !!t.audible,
-    muted: !!t.mutedInfo?.muted,
-    lastAccessed: t.lastAccessed || 0,
-    groupId: typeof t.groupId === "number" ? t.groupId : -1,
-    groupTitle,
-    groupColor,
-    groupCollapsed
+    id: tab.id,
+    windowId: tab.windowId,
+    index: tab.index,
+    active: !!tab.active,
+    pinned: !!tab.pinned,
+    title: tab.title || "",
+    url: tab.url || "",
+    favIconUrl: getTabFaviconUrl(tab),
+    audible: !!tab.audible,
+    muted: !!tab.mutedInfo?.muted,
+    lastAccessed: tab.lastAccessed || 0,
+    groupId: typeof tab.groupId === "number" ? tab.groupId : -1,
+    groupTitle: groupMap[tab.groupId]?.title || "",
+    groupColor: groupMap[tab.groupId]?.color || "",
+    groupCollapsed: groupMap[tab.groupId]?.collapsed || false
   };
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+async function buildTabPayload(tab) {
+  const groupMap = await getGroupMap([tab]);
+  return toTabPayload(tab, groupMap);
+}
+
+extensionApi.commands.onCommand.addListener(async (command) => {
+  if (command !== "toggle_palette") return;
+  await togglePaletteInActiveTab();
+});
+
+extensionApi.runtime.onInstalled.addListener(() => {
+  if (!hasSidePanel) return;
+  try {
+    extensionApi.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  } catch {
+    // ignore
+  }
+});
+
+if (extensionApi.action?.onClicked) {
+  extensionApi.action.onClicked.addListener(async (tab) => {
+    if (!tab?.id) return;
+    if (hasSidePanel) {
+      try {
+        await extensionApi.sidePanel.setOptions({
+          tabId: tab.id,
+          path: "sidepanel.html",
+          enabled: true
+        });
+        await extensionApi.sidePanel.open({ tabId: tab.id });
+        return;
+      } catch {
+        // fall back to overlay mode
+      }
+    }
+    try {
+      await toggleInTab(tab.id);
+    } catch {
+      try {
+        await ensureContentScript(tab.id);
+        await toggleInTab(tab.id);
+      } catch {
+        // ignore failed injection on restricted pages
+      }
+    }
+  });
+}
+
+async function handleMessage(msg, sender) {
+  if (msg?.type === "TP_GET_TABS") {
+    const currentWindow = msg.currentWindow !== false;
+    const tabs = await extensionApi.tabs.query(currentWindow ? { currentWindow: true } : {});
+    const groupMap = await getGroupMap(tabs);
+    return { ok: true, tabs: tabs.map((tab) => toTabPayload(tab, groupMap)) };
+  }
+
+  if (msg?.type === "TP_ACTIVATE_TAB") {
+    const { tabId, windowId } = msg;
+    if (typeof tabId !== "number") return { ok: false };
+    try {
+      if (typeof windowId === "number") {
+        await extensionApi.windows.update(windowId, { focused: true });
+      }
+      await extensionApi.tabs.update(tabId, { active: true });
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  if (msg?.type === "TP_CLOSE_TAB") {
+    if (typeof msg.tabId !== "number") return { ok: false };
+    try {
+      await extensionApi.tabs.remove(msg.tabId);
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  if (msg?.type === "TP_CLOSE_TABS") {
+    if (!Array.isArray(msg.tabIds) || msg.tabIds.length === 0) return { ok: false };
+    try {
+      await extensionApi.tabs.remove(msg.tabIds);
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  if (msg?.type === "TP_GET_ZOOM") {
+    try {
+      const tabId = sender?.tab?.id;
+      if (typeof tabId !== "number") return { ok: false };
+      const zoom = await extensionApi.tabs.getZoom(tabId);
+      return { ok: true, zoom };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  return false;
+}
+
+if (isFirefox) {
+  extensionApi.runtime.onMessage.addListener((msg, sender) => handleMessage(msg, sender));
+} else {
+  extensionApi.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    handleMessage(msg, sender).then(sendResponse).catch(() => sendResponse({ ok: false }));
+    return true;
+  });
+}
+
+extensionApi.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (!tab?.id) return;
   const keys = ["audible", "mutedInfo", "title", "favIconUrl", "url", "groupId"];
-  const changed = keys.some(k => k in changeInfo);
-  if (!changed) return;
+  if (!keys.some((key) => key in changeInfo)) return;
+
   const payload = await buildTabPayload(tab);
-  chrome.runtime.sendMessage({ type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+  extensionApi.runtime.sendMessage({ type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+
   if (typeof tab.windowId === "number") {
-    chrome.tabs.query({ active: true, windowId: tab.windowId }).then((tabs) => {
-      const active = tabs[0];
-      if (!active?.id) return;
-      chrome.tabs.sendMessage(active.id, { type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+    extensionApi.tabs.query({ active: true, windowId: tab.windowId }).then((tabs) => {
+      const activeTab = tabs[0];
+      if (!activeTab?.id) return;
+      extensionApi.tabs.sendMessage(activeTab.id, { type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
     }).catch(() => {});
   }
 });
 
-chrome.tabs.onActivated.addListener(async (info) => {
+extensionApi.tabs.onActivated.addListener(async (info) => {
   if (!info?.tabId) return;
   try {
-    const tab = await chrome.tabs.get(info.tabId);
+    const tab = await extensionApi.tabs.get(info.tabId);
     if (!tab?.id) return;
     const payload = await buildTabPayload(tab);
-    chrome.runtime.sendMessage({ type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
+    extensionApi.runtime.sendMessage({ type: "TP_TAB_UPDATE", tab: payload }).catch(() => {});
   } catch {
     // ignore
   }
