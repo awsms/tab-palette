@@ -1,3 +1,5 @@
+const extensionApi = globalThis.browser || globalThis.chrome;
+
 const TP = {
   host: null,
   shadow: null,
@@ -26,11 +28,11 @@ const DEFAULT_SETTINGS = {
   uiScale: 1
 };
 
-chrome.runtime.onMessage.addListener((msg) => {
+extensionApi.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "TP_TOGGLE") {
     (async () => {
       try {
-        const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings]);
+        const resp = await extensionApi.storage.sync.get([STORAGE_KEYS.settings]);
         const settings = resp[STORAGE_KEYS.settings] || {};
         if (settings.displayMode === "sidepanel") return;
       } catch {
@@ -94,7 +96,7 @@ function ensureUI() {
     }
 
     if (data.type === "TP_REQUEST_TABS") {
-      const resp = await chrome.runtime.sendMessage({
+      const resp = await extensionApi.runtime.sendMessage({
         type: "TP_GET_TABS",
         currentWindow: true
       });
@@ -103,7 +105,7 @@ function ensureUI() {
     }
 
     if (data.type === "TP_ACTIVATE") {
-      await chrome.runtime.sendMessage({
+      await extensionApi.runtime.sendMessage({
         type: "TP_ACTIVATE_TAB",
         tabId: data.tabId,
         windowId: data.windowId
@@ -113,7 +115,7 @@ function ensureUI() {
     }
 
     if (data.type === "TP_CLOSE_TAB") {
-      await chrome.runtime.sendMessage({
+      await extensionApi.runtime.sendMessage({
         type: "TP_CLOSE_TAB",
         tabId: data.tabId
       });
@@ -121,7 +123,7 @@ function ensureUI() {
     }
 
     if (data.type === "TP_CLOSE_TABS") {
-      await chrome.runtime.sendMessage({
+      await extensionApi.runtime.sendMessage({
         type: "TP_CLOSE_TABS",
         tabIds: data.tabIds
       });
@@ -146,7 +148,7 @@ function ensureUI() {
 
   if (!TP.settingsBound) {
     TP.settingsBound = true;
-    chrome.storage.onChanged.addListener((changes, area) => {
+    extensionApi.storage.onChanged.addListener((changes, area) => {
       if (area !== "sync" || !changes[STORAGE_KEYS.settings]) return;
       const next = changes[STORAGE_KEYS.settings].newValue || {};
       TP.uiScale = typeof next.uiScale === "number" ? next.uiScale : 1;
@@ -175,14 +177,14 @@ function maybeShowIframe() {
 }
 
 async function loadSettings() {
-  const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings]);
+  const resp = await extensionApi.storage.sync.get([STORAGE_KEYS.settings]);
   const settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
   TP.uiScale = typeof settings.uiScale === "number" ? settings.uiScale : 1;
 }
 
 async function loadZoomBase() {
   try {
-    const resp = await chrome.runtime.sendMessage({ type: "TP_GET_ZOOM" });
+    const resp = await extensionApi.runtime.sendMessage({ type: "TP_GET_ZOOM" });
     if (!resp?.ok || typeof resp.zoom !== "number") return;
     const currentDpr = window.devicePixelRatio || 1;
     TP.baseDpr = currentDpr / (resp.zoom || 1);
@@ -197,7 +199,7 @@ function createIframe() {
 
   TP.ready = false;
   TP.iframe = document.createElement("iframe");
-  TP.iframe.src = chrome.runtime.getURL("overlay.html");
+  TP.iframe.src = extensionApi.runtime.getURL("overlay.html");
   TP.iframe.style.position = "fixed";
   TP.iframe.style.left = "50%";
   TP.iframe.style.top = "14%";

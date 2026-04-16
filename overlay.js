@@ -1,6 +1,8 @@
 // overlay.js runs inside an extension iframe.
 // It talks to the content script via window.postMessage.
 
+const extensionApi = globalThis.browser || globalThis.chrome;
+
 const queryEl = document.getElementById("query");
 const listEl = document.getElementById("list");
 const backdropEl = document.getElementById("backdrop");
@@ -66,22 +68,22 @@ function post(msg) {
     return;
   }
   if (msg.type === "TP_REQUEST_TABS") {
-    chrome.runtime.sendMessage({ type: "TP_GET_TABS", currentWindow: true }).then((resp) => {
+    extensionApi.runtime.sendMessage({ type: "TP_GET_TABS", currentWindow: true }).then((resp) => {
       if (!resp?.ok) return;
       handleTabs(resp);
     });
     return;
   }
   if (msg.type === "TP_ACTIVATE") {
-    chrome.runtime.sendMessage({ type: "TP_ACTIVATE_TAB", tabId: msg.tabId, windowId: msg.windowId });
+    extensionApi.runtime.sendMessage({ type: "TP_ACTIVATE_TAB", tabId: msg.tabId, windowId: msg.windowId });
     return;
   }
   if (msg.type === "TP_CLOSE_TAB") {
-    chrome.runtime.sendMessage({ type: "TP_CLOSE_TAB", tabId: msg.tabId });
+    extensionApi.runtime.sendMessage({ type: "TP_CLOSE_TAB", tabId: msg.tabId });
     return;
   }
   if (msg.type === "TP_CLOSE_TABS") {
-    chrome.runtime.sendMessage({ type: "TP_CLOSE_TABS", tabIds: msg.tabIds });
+    extensionApi.runtime.sendMessage({ type: "TP_CLOSE_TABS", tabIds: msg.tabIds });
   }
 }
 
@@ -225,7 +227,7 @@ function buildGroupOptions(tabs) {
 }
 
 async function loadSettings() {
-  const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings, STORAGE_KEYS.state]);
+  const resp = await extensionApi.storage.sync.get([STORAGE_KEYS.settings, STORAGE_KEYS.state]);
   settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
   state = { ...DEFAULT_STATE, ...(resp[STORAGE_KEYS.state] || {}) };
 
@@ -239,7 +241,7 @@ async function loadSettings() {
 function bindSettingsListener() {
   if (settingsBound) return;
   settingsBound = true;
-  chrome.storage.onChanged.addListener((changes, area) => {
+  extensionApi.storage.onChanged.addListener((changes, area) => {
     if (area !== "sync" || !changes[STORAGE_KEYS.settings]) return;
     const next = { ...DEFAULT_SETTINGS, ...(changes[STORAGE_KEYS.settings].newValue || {}) };
     settings = next;
@@ -264,7 +266,7 @@ function saveState() {
     groupFilter: currentGroup
   };
   state = nextState;
-  chrome.storage.sync.set({ [STORAGE_KEYS.state]: nextState });
+  extensionApi.storage.sync.set({ [STORAGE_KEYS.state]: nextState });
 }
 
 function applyFilter() {
@@ -566,7 +568,7 @@ if (!isSidePanel) {
   });
 }
 
-chrome.runtime.onMessage.addListener((msg) => {
+extensionApi.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "TP_TAB_UPDATE") {
     handleTabUpdate(msg.tab);
   }

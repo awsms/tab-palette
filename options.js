@@ -1,3 +1,5 @@
+const extensionApi = globalThis.browser || globalThis.chrome;
+
 const STORAGE_KEYS = {
   settings: "tp_settings"
 };
@@ -70,19 +72,19 @@ function updateGroupDependents(enabled) {
 }
 
 async function load() {
-  const resp = await chrome.storage.sync.get([STORAGE_KEYS.settings]);
+  const resp = await extensionApi.storage.sync.get([STORAGE_KEYS.settings]);
   const settings = { ...DEFAULT_SETTINGS, ...(resp[STORAGE_KEYS.settings] || {}) };
   writeForm(settings);
 }
 
 async function save() {
   const settings = readForm();
-  await chrome.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
+  await extensionApi.storage.sync.set({ [STORAGE_KEYS.settings]: settings });
   setStatus("Saved");
 }
 
 async function resetDefaults() {
-  await chrome.storage.sync.set({ [STORAGE_KEYS.settings]: { ...DEFAULT_SETTINGS } });
+  await extensionApi.storage.sync.set({ [STORAGE_KEYS.settings]: { ...DEFAULT_SETTINGS } });
   writeForm({ ...DEFAULT_SETTINGS });
   setStatus("Reset");
 }
