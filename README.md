@@ -46,7 +46,7 @@ The options page supports:
 1. Open `chrome://extensions`
 2. Enable Developer mode
 3. Choose `Load unpacked`
-4. Select the repo root
+4. Select [`src`](./src)
 
 ### Load in Firefox
 

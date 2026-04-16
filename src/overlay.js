@@ -416,24 +416,19 @@ function render() {
       const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
       if (isMulti) {
         if (e.shiftKey && anchorIndex !== null) {
-          const [a, b] = anchorIndex < idx ? [anchorIndex, idx] : [idx, anchorIndex];
-          for (let i = a; i <= b; i += 1) {
-            const t = filtered[i];
-            if (t) selectedIds.add(t.id);
-          }
+          extendSelection(idx);
         } else {
           const id = tab.id;
           if (selectedIds.has(id)) selectedIds.delete(id);
           else selectedIds.add(id);
+          selectedIndex = idx;
           anchorIndex = idx;
+          updateCloseSelectedButton();
+          render();
         }
-        updateCloseSelectedButton();
-        render();
         return;
       }
-      selectedIds = new Set([tab.id]);
-      anchorIndex = idx;
-      updateCloseSelectedButton();
+      setSingleSelection(idx);
       activateSelected();
     });
 
@@ -465,10 +460,37 @@ function scrollSelectedIntoView() {
   else if (r.bottom > lr.bottom) el.scrollIntoView({ block: "nearest" });
 }
 
+function setSingleSelection(idx) {
+  const tab = filtered[idx];
+  if (!tab) return;
+  selectedIndex = idx;
+  selectedIds = new Set([tab.id]);
+  anchorIndex = idx;
+  updateCloseSelectedButton();
+  render();
+}
+
+function extendSelection(nextIndex) {
+  if (filtered.length === 0) return;
+  if (anchorIndex === null) {
+    anchorIndex = selectedIndex;
+  }
+  const maxIndex = filtered.length - 1;
+  selectedIndex = Math.max(0, Math.min(nextIndex, maxIndex));
+  selectedIds.clear();
+  const [a, b] = anchorIndex < selectedIndex ? [anchorIndex, selectedIndex] : [selectedIndex, anchorIndex];
+  for (let i = a; i <= b; i += 1) {
+    const tab = filtered[i];
+    if (tab) selectedIds.add(tab.id);
+  }
+  updateCloseSelectedButton();
+  render();
+}
+
 function moveSelection(delta) {
   if (filtered.length === 0) return;
-  selectedIndex = (selectedIndex + delta + filtered.length) % filtered.length;
-  highlightOnly();
+  const nextIndex = (selectedIndex + delta + filtered.length) % filtered.length;
+  setSingleSelection(nextIndex);
 }
 
 function activateSelected() {
@@ -585,12 +607,20 @@ window.addEventListener("keydown", (e) => {
 
   if (e.key === "ArrowDown") {
     e.preventDefault();
+    if (e.shiftKey) {
+      extendSelection(selectedIndex + 1);
+      return;
+    }
     moveSelection(+1);
     return;
   }
 
   if (e.key === "ArrowUp") {
     e.preventDefault();
+    if (e.shiftKey) {
+      extendSelection(selectedIndex - 1);
+      return;
+    }
     moveSelection(-1);
     return;
   }
