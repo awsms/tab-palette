@@ -16,6 +16,8 @@ const TP = {
   readyToShow: false,
   sizeReady: false,
   showTimer: null,
+  focusFrameId: null,
+  focusTimerIds: [],
   forceShow: false,
   lastContentHeight: null
 };
@@ -200,6 +202,7 @@ function createIframe() {
   TP.ready = false;
   TP.iframe = document.createElement("iframe");
   TP.iframe.src = extensionApi.runtime.getURL("overlay.html");
+  TP.iframe.tabIndex = -1;
   TP.iframe.style.position = "fixed";
   TP.iframe.style.left = "50%";
   TP.iframe.style.top = "14%";
@@ -226,13 +229,51 @@ function createIframe() {
     // If the palette was opened before the iframe finished loading, open it now.
     if (TP.open && TP.iframe?.contentWindow) {
       TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
+      schedulePaletteFocus();
     }
   });
 
   TP.shadow.appendChild(TP.iframe);
 }
 
-function showPalette() {
+function focusPaletteFrame() {
+  if (!TP.open || !TP.iframe?.isConnected) return;
+  try {
+    TP.iframe.focus({ preventScroll: true });
+  } catch {
+    try {
+      TP.iframe.focus();
+    } catch {
+      // ignore focus failures
+    }
+  }
+  if (TP.iframe?.contentWindow) {
+    TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_FORCE_FOCUS" }, "*");
+  }
+}
+
+function clearPaletteFocus() {
+  if (TP.focusFrameId !== null) {
+    cancelAnimationFrame(TP.focusFrameId);
+    TP.focusFrameId = null;
+  }
+  TP.focusTimerIds.forEach(clearTimeout);
+  TP.focusTimerIds = [];
+}
+
+function schedulePaletteFocus() {
+  clearPaletteFocus();
+  focusPaletteFrame();
+  TP.focusFrameId = requestAnimationFrame(() => {
+    TP.focusFrameId = null;
+    focusPaletteFrame();
+  });
+  [50, 150].forEach((delay) => {
+    TP.focusTimerIds.push(setTimeout(focusPaletteFrame, delay));
+  });
+}
+
+function showPalette(previousFocus = document.activeElement) {
   ensureUI();
   createIframe();
   TP.open = true;
@@ -244,7 +285,7 @@ function showPalette() {
     TP.showTimer = null;
   }
   maybeShowIframe();
-  TP.lastFocused = document.activeElement;
+  TP.lastFocused = previousFocus;
   TP.host.style.display = "block";
   TP.host.style.pointerEvents = "auto";
   if (TP.backdrop) {
@@ -265,14 +306,13 @@ function showPalette() {
     TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_OPEN" }, "*");
   }
 
-  if (TP.iframe?.contentWindow) {
-    TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_FORCE_FOCUS" }, "*");
-  }
+  schedulePaletteFocus();
 }
 
 function hidePalette() {
   if (!TP.host) return;
   TP.open = false;
+  clearPaletteFocus();
   if (TP.iframe?.contentWindow) {
     TP.iframe.contentWindow.postMessage({ __tp: true, type: "TP_BLUR" }, "*");
   }
@@ -316,16 +356,22 @@ function togglePalette() {
       if (typeof el.selectionStart === "number" && typeof el.selectionEnd === "number") {
         if (el.selectionStart !== el.selectionEnd) {
           el.selectionEnd = el.selectionStart;
-          return;
         }
       }
     }
     const sel = window.getSelection && window.getSelection();
     if (sel && !sel.isCollapsed) {
       sel.removeAllRanges();
-      return;
     }
-    showPalette();
+    if (
+      active &&
+      active !== document.body &&
+      active !== document.documentElement &&
+      typeof active.blur === "function"
+    ) {
+      active.blur();
+    }
+    showPalette(active);
   } else {
     hidePalette();
   }

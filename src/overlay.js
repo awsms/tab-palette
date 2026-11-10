@@ -22,6 +22,7 @@ let selectedIds = new Set();
 let anchorIndex = null;
 
 let settingsBound = false;
+let focusFrameId = null;
 
 const isSidePanel = window.location.pathname.endsWith("sidepanel.html");
 
@@ -85,6 +86,31 @@ function post(msg) {
   if (msg.type === "TP_CLOSE_TABS") {
     extensionApi.runtime.sendMessage({ type: "TP_CLOSE_TABS", tabIds: msg.tabIds });
   }
+}
+
+function focusQuery() {
+  if (!open) return;
+  try {
+    queryEl.focus({ preventScroll: true });
+  } catch {
+    queryEl.focus();
+  }
+}
+
+function clearQueryFocus() {
+  if (focusFrameId !== null) {
+    cancelAnimationFrame(focusFrameId);
+    focusFrameId = null;
+  }
+}
+
+function scheduleQueryFocus() {
+  clearQueryFocus();
+  focusQuery();
+  focusFrameId = requestAnimationFrame(() => {
+    focusFrameId = null;
+    focusQuery();
+  });
 }
 
 function notifyReady() {
@@ -527,11 +553,15 @@ function updateCloseSelectedButton() {
 
 function close() {
   open = false;
+  clearQueryFocus();
   post({ type: "TP_CLOSE" });
 }
 
 function openPalette() {
-  if (open) return;
+  if (open) {
+    scheduleQueryFocus();
+    return;
+  }
   open = true;
   queryEl.value = "";
   selectedIndex = 0;
@@ -545,8 +575,7 @@ function openPalette() {
     post({ type: "TP_REQUEST_TABS" });
   });
 
-  // Focus after a tick to ensure iframe is ready
-  setTimeout(() => queryEl.focus(), 0);
+  scheduleQueryFocus();
 }
 
 if (!isSidePanel) {
@@ -560,11 +589,13 @@ if (!isSidePanel) {
     }
 
     if (data.type === "TP_FORCE_FOCUS") {
-      setTimeout(() => queryEl.focus(), 0);
+      scheduleQueryFocus();
       return;
     }
 
     if (data.type === "TP_BLUR") {
+      open = false;
+      clearQueryFocus();
       if (document.activeElement && typeof document.activeElement.blur === "function") {
         document.activeElement.blur();
       }
